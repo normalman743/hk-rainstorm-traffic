@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 INTERIM_DIR = DATA_DIR / "interim"
+PROCESSED_DIR = DATA_DIR / "processed"
 
 # Resources archived by the DATA.GOV.HK Historical Archive API.
 # Keys are the short names used on the command line.
