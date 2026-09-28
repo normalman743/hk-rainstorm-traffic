@@ -11,6 +11,7 @@ every 5 minutes (~200 MB of downloads per day). Each snapshot contains two
 Usage:  python scripts/03_traffic.py 2025-07-27 2025-08-16 [--every 5] [--workers 6]
 """
 import argparse
+import xml.etree.ElementTree as ET
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -30,8 +31,12 @@ def one_bucket(cands: list[str], max_tries: int = 4):
     """Try snapshots in the bucket in order until one exists in the archive."""
     for ts in cands[:max_tries]:
         body = fetch_version(TRAFFIC_RAW_URL, ts)
-        if body is not None:
+        if body is None:
+            continue
+        try:
             return cands[0], parse_traffic_xml(body, ts)
+        except ET.ParseError:  # some archived files are truncated
+            print("  truncated XML, trying next:", ts)
     return cands[0], None
 
 

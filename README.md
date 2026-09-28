@@ -132,7 +132,7 @@ python scripts/04_sample.py  2025-07-27 2025-08-16   # detector x 15-min table  
 | `reference/public_holidays.csv` | yes | 2021–2027 (2025+ from 1823.gov.hk, earlier from the `holidays` package; please verify) |
 | `reference/daily_rainfall_HKO.csv` | yes | Daily rainfall at HKO HQ, full history, raw HKO format |
 | `weather/district_rain_*.csv` | yes | Hourly past-hour rainfall range per district, parsed from CurrentWeather.xml |
-| `sample/traffic_15min_*.csv.gz` | yes | Pilot window: detector × 15 min, with both naive and cleaned speed |
+| `sample/traffic_15min_20250727_20250816.csv.gz` | yes | Pilot, 27 Jul–16 Aug 2025 (Black rainstorms on 29 Jul, 2 Aug, 4–5 Aug): 778 detectors × 15 min, 1.55 M rows. Columns: `n_readings`, `n_invalid`, `n_zero_volume`, `n_speed_over_130`, `speed_naive` (plain mean), `speed_clean` (volume-weighted, `valid=Y` and volume>0), `volume_sum`, `occupancy_mean` |
 | `interim/traffic/lanes_*.parquet` | no | Lane-level 30-s readings, one file per day, every 5 min |
 
 ## Data quirks found so far (preprocessing material)
@@ -145,7 +145,8 @@ python scripts/04_sample.py  2025-07-27 2025-08-16   # detector x 15-min table  
 5. **Time lag:** observations are 5–10 min older than the snapshot timestamp. Align on `obs_time`.
 6. **Midnight date bug:** right after midnight the XML `<date>` can still show the previous day
    (`hkrt.parse.fix_midnight_date` corrects it).
-7. **Archive gaps:** some snapshots return 404; the downloader falls back to the next one in the 5-min bucket.
+7. **Archive gaps:** some snapshots return 404 and a few archived files are truncated XML; the downloader
+   falls back to the next snapshot in the 5-min bucket (≈1% of buckets still empty, see `_download_log.csv`).
 8. **Name mismatches:** detector table has both `Central & Western` and `Central and Western`;
    HKO writes `Eastern District`, `North District`, …; 97% of road names have trailing spaces.
 9. **Coverage:** 807 detectors in the table, ~770 report in any snapshot, 30 never seen in our sample.
