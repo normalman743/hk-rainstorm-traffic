@@ -57,8 +57,50 @@ Bulk downloads: `list-file-versions` also returns **monthly ZIP bundles**
 dataset page on DATA.GOV.HK ("Historical Data" tab).
 
 **Storage note:** 5 rainy seasons (Apr–Sep, 2021–2025) of raw detector data
-is roughly 30 GB zipped. We therefore parse each monthly ZIP into
-per-detector 5-minute Parquet files and discard the XML.
+is roughly 30 GB zipped. We therefore download only rainstorm event days plus
+matched dry control days (see below), about 11 GB in total.
+
+### Download scripts
+
+```bash
+pip install -r requirements.txt
+
+python -m src.download warnings     # HKO rainstorm + typhoon signal DBs -> data/raw/hko/*.csv,
+                                    #   data/interim/rainstorm_episodes.csv
+python -m src.download static       # detector locations, road segments, HKO daily rainfall
+python -m src.download select-days --years 2021-2025 --months 4-10 --min-level A \
+       --pad-hours 3 --controls 2   # -> data/interim/day_manifest.csv (event + control days)
+
+python -m src.download fetch weather traffic --manifest        # everything in the manifest
+python -m src.download fetch traffic --days 2025-08-05         # or specific days
+python -m src.download fetch weather --range 2025-08-01 2025-08-31
+```
+
+`fetch` writes one ZIP per source and day to `data/raw/<source>/<YYYY>/<YYYYMMDD>.zip`
+and skips days that already exist, so it can be re-run safely after an interruption. It
+does not download the 1 GB monthly bundle. Instead it reads the bundle's index with
+HTTP range requests and pulls only that day's snapshots (~30 MB, ~40 s per day of
+traffic data). Sources: `traffic` (raw detectors), `weather` (district rainfall),
+`segments` (processed segment speeds, optional).
+
+With the defaults (2021–2025, April–October, any warning level, 2 control
+weeks) the manifest has 362 days: 155 event days and 207 control days.
+
+A control day is the same weekday one or two weeks before an event day, with no
+rainstorm warning and no typhoon signal.
+
+### Data quirks found so far
+
+These matter for the cleaning step:
+
+- **Snapshot time ≠ measurement time.** A traffic snapshot archived at 08:01 holds
+  the two 30-second periods 07:53:00–07:54:00. Always use `<period_from>` inside the XML.
+- **Gaps.** About 947 snapshots per day (≈ one every 1.5 min), each covering 1 min,
+  so roughly a third of the minutes are missing even before any sensor faults.
+- **Duplicate snapshots.** Bundles sometimes store the same file twice. `fetch` drops exact duplicates.
+- **`24:00` timestamps.** The HKO warning files write midnight as 24:00. The parser rolls it over to 00:00 the next day.
+- **Provisional records.** In the HKO warning files, rows after the `UUUU` marker are provisional (flagged in the CSVs).
+- **All times are HKT (UTC+8)** and are stored without a time zone.
 
 ### Key periods
 
@@ -69,7 +111,7 @@ and the Black Rainstorm on the morning of 5 Aug 2025. We confirmed that both the
 traffic and the district-rainfall archives contain snapshots for 5 Aug 2025.
 The full event list comes from dataset #4.
 
-## Repository layout (planned)
+## Repository layout (`src/download/` done, rest planned)
 
 ```
 .
