@@ -9,6 +9,7 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 > [`docs/raw_data.md`](docs/raw_data.md) (every raw source and field),
 > [`docs/processing.md`](docs/processing.md) (what each pipeline step does) and
 > [`docs/database_description.md`](docs/database_description.md) (processed tables).
+> Chinese versions: [`docs/raw_data.zh.md`](docs/raw_data.zh.md), [`docs/processing.zh.md`](docs/processing.zh.md).
 
 ## Research questions
 
@@ -175,7 +176,7 @@ and the Black Rainstorm of 4–5 Aug 2025.
 ```
 .
 ├── README.md, PROPOSAL.md, requirements.txt
-├── docs/               # raw_data.md, processing.md, database_description.md
+├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description.md
 ├── src/
 │   ├── download/       # step 1-2 (+ fetch): archive client, warnings, static files, holidays, day selection
 │   ├── parse/          # traffic XML and weather bulletins -> tables

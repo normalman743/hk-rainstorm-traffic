@@ -1,5 +1,7 @@
 # Data Processing
 
+> 中文版：[`processing.zh.md`](processing.zh.md)
+
 How raw sources ([`raw_data.md`](raw_data.md)) become the processed tables
 ([`database_description.md`](database_description.md)): every step, the code that does
 it, what it changes, what it deliberately leaves alone, and how the result is checked.

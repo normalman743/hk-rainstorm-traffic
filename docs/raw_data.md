@@ -1,5 +1,7 @@
 # Raw Data Dictionary
 
+> 中文版：[`raw_data.zh.md`](raw_data.zh.md)
+
 This document describes every **raw** data source as it is published: where it comes
 from, how it is accessed, its format and structure, what every field means, which
 values actually occur, and the quirks found when we inspected real data. Processed
