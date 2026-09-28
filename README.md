@@ -5,7 +5,8 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 > Course project. The focus is **data preprocessing and integration**: every
 > major cleaning / aggregation / matching decision is treated as an experimental
 > variable, and we measure how it changes the downstream results.
-> See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan.
+> See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan and
+> [`docs/database_description.md`](docs/database_description.md) for every source, field and table.
 
 ## Research questions
 
@@ -52,10 +53,56 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
   --data "time=20250805-0809" -o CurrentWeather-20250805-0809.xml
 ```
 
-The API does **not** return monthly bundles, so `scripts/03_traffic.py`
-downloads individual snapshots. A full day has ~1,000 snapshots (~0.7 GB);
-we keep one every 5 minutes (~200 MB of downloads per day, ~2 min per day)
-and immediately store it as lane-level Parquet (~4 MB/day).
+Bulk downloads: `list-file-versions` also returns **monthly ZIP bundles**
+(`data-files`). The raw traffic file is about **1 GB per month** compressed
+(~30k snapshots). You can also download monthly/daily archives from the
+dataset page on DATA.GOV.HK ("Historical Data" tab).
+
+**Storage note:** 5 rainy seasons (Apr–Sep, 2021–2025) of raw detector data
+is roughly 30 GB zipped. We therefore download only rainstorm event days plus
+matched dry control days (see below), about 11 GB in total.
+
+### Download scripts
+
+```bash
+pip install -r requirements.txt
+
+python -m src.download warnings     # HKO rainstorm + typhoon signal DBs -> data/raw/hko/*.csv,
+                                    #   data/interim/rainstorm_episodes.csv
+python -m src.download static       # detector locations, road segments, HKO daily rainfall
+python -m src.download select-days --years 2021-2025 --months 4-10 --min-level A \
+       --pad-hours 3 --controls 2   # -> data/interim/day_manifest.csv (event + control days)
+
+python -m src.download fetch weather traffic --manifest        # everything in the manifest
+python -m src.download fetch traffic --days 2025-08-05         # or specific days
+python -m src.download fetch weather --range 2025-08-01 2025-08-31
+```
+
+`fetch` writes one ZIP per source and day to `data/raw/<source>/<YYYY>/<YYYYMMDD>.zip`
+and skips days that already exist, so it can be re-run safely after an interruption. It
+does not download the 1 GB monthly bundle. Instead it reads the bundle's index with
+HTTP range requests and pulls only that day's snapshots (~30 MB, ~40 s per day of
+traffic data). Sources: `traffic` (raw detectors), `weather` (district rainfall),
+`segments` (processed segment speeds, optional).
+
+With the defaults (2021–2025, April–October, any warning level, 2 control
+weeks) the manifest has 362 days: 155 event days and 207 control days.
+
+A control day is the same weekday one or two weeks before an event day, with no
+rainstorm warning and no typhoon signal.
+
+### Data quirks found so far
+
+These matter for the cleaning step:
+
+- **Snapshot time ≠ measurement time.** A traffic snapshot archived at 08:01 holds
+  the two 30-second periods 07:53:00–07:54:00. Always use `<period_from>` inside the XML.
+- **Gaps.** About 947 snapshots per day (≈ one every 1.5 min), each covering 1 min,
+  so roughly a third of the minutes are missing even before any sensor faults.
+- **Duplicate snapshots.** Bundles sometimes store the same file twice. `fetch` drops exact duplicates.
+- **`24:00` timestamps.** The HKO warning files write midnight as 24:00. The parser rolls it over to 00:00 the next day.
+- **Provisional records.** In the HKO warning files, rows after the `UUUU` marker are provisional (flagged in the CSVs).
+- **All times are HKT (UTC+8)** and are stored without a time zone.
 
 ### Key periods
 
