@@ -10,12 +10,18 @@ ElementTree on a full day: 3,611,987 identical rows).
 
 Schema history: `<s.d.>` only exists from ~18 Nov 2021 (data dictionary
 20211118); earlier files leave `sd` missing.
+
+Midnight quirk: the period starting at 00:00 is published with the previous
+day's `<date>` (e.g. 2025-08-05 00:00:00 appears as 2025-08-04 00:00:00). When
+the archive time of the file is known, a period more than 12 h older than it
+is moved forward one day.
 """
 
 from __future__ import annotations
 
 import re
 import zipfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
@@ -40,10 +46,12 @@ _TOKEN = re.compile(
 )
 
 
-def _scan(xmls: Iterable[bytes]) -> dict[str, list]:
+def _scan(items: Iterable[tuple[datetime | None, bytes]]) -> tuple[dict[str, list], int]:
+    """items: (archive time of the file or None, XML). Returns columns and the number of periods re-dated."""
     cols: dict[str, list] = {c: [] for c in COLUMNS}
     times, dets, lanes, speeds, occs, vols, sds, valids = cols.values()
-    for xml in xmls:
+    n_fixed = 0
+    for archived_at, xml in items:
         day = stamp = det = None
         for m in _TOKEN.finditer(xml.decode("utf-8", "replace")):
             if m.group(4) is not None:
@@ -63,9 +71,14 @@ def _scan(xmls: Iterable[bytes]) -> dict[str, list]:
                 if day is None:
                     raise ValueError("period before <date>")
                 stamp = f"{day} {m.group(2)}"
+                if archived_at is not None:
+                    measured = datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")
+                    if archived_at - measured > timedelta(hours=12):
+                        stamp = f"{measured + timedelta(days=1):%Y-%m-%d %H:%M:%S}"
+                        n_fixed += 1
             else:
                 day = m.group(1)
-    return cols
+    return cols, n_fixed
 
 
 def _numeric(values: list, dtype: str) -> pd.array:
@@ -92,8 +105,16 @@ def to_frame(cols: dict[str, list]) -> pd.DataFrame:
     })
 
 
-def parse_snapshots(xmls: Iterable[bytes]) -> pd.DataFrame:
-    return to_frame(_scan(xmls))
+def parse_snapshots(xmls: Iterable[bytes], archived_at: Iterable[datetime | None] | None = None) -> pd.DataFrame:
+    """Parse XML files; pass their archive times to correct the midnight date quirk."""
+    xmls = list(xmls)
+    times = list(archived_at) if archived_at is not None else [None] * len(xmls)
+    return to_frame(_scan(zip(times, xmls))[0])
+
+
+def archive_time(member_name: str) -> datetime:
+    """'20250805-0801-rawSpeedVol-all.xml' -> 2025-08-05 08:01."""
+    return datetime.strptime(Path(member_name).name[:13], "%Y%m%d-%H%M")
 
 
 def parse_day_zip(path: Path) -> tuple[pd.DataFrame, dict]:
@@ -103,7 +124,8 @@ def parse_day_zip(path: Path) -> tuple[pd.DataFrame, dict]:
     """
     with zipfile.ZipFile(path) as zf:
         names = zf.namelist()
-        df = parse_snapshots(zf.read(name) for name in names)
+        cols, n_fixed = _scan((archive_time(name), zf.read(name)) for name in names)
+    df = to_frame(cols)
     n_raw = len(df)
     df = df.drop_duplicates(KEY).sort_values(["detector_id", "lane", "time"], ignore_index=True)
     stats = {
@@ -113,5 +135,6 @@ def parse_day_zip(path: Path) -> tuple[pd.DataFrame, dict]:
         "n_periods": int(df["time"].nunique()),
         "n_detectors": int(df["detector_id"].nunique()),
         "has_sd": bool(df["sd"].notna().any()),
+        "n_periods_redated": n_fixed,
     }
     return df, stats

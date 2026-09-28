@@ -60,8 +60,20 @@ def test_parse_traffic_day_zip_drops_overlap(tmp_path):
         zf.writestr("20250805-0801-rawSpeedVol-all.xml", XML_2025)
         zf.writestr("20250805-0802-rawSpeedVol-all.xml", XML_2025)  # overlapping snapshot
     df, stats = traffic.parse_day_zip(path)
-    assert stats["n_rows_raw"] == 8 and stats["n_rows"] == 4
+    assert stats["n_rows_raw"] == 8 and stats["n_rows"] == 4 and stats["n_periods_redated"] == 0
     assert stats["n_periods"] == 2 and stats["n_detectors"] == 2 and stats["has_sd"]
+
+
+def test_midnight_period_is_redated():
+    xml = XML_2025.replace(b"<date>2025-08-05</date>", b"<date>2025-08-04</date>") \
+                  .replace(b"07:53:00", b"00:00:00").replace(b"07:53:30", b"00:00:30")
+    fixed = traffic.parse_snapshots([xml], [datetime(2025, 8, 5, 0, 8)])
+    assert fixed["time"].min() == pd.Timestamp("2025-08-05 00:00:00")
+    # a normal late-evening period archived just after midnight stays on its day
+    late = XML_2025.replace(b"<date>2025-08-05</date>", b"<date>2025-08-04</date>").replace(b"07:53:00", b"23:54:00")
+    kept = traffic.parse_snapshots([late], [datetime(2025, 8, 5, 0, 2)])
+    assert pd.Timestamp("2025-08-04 23:54:00") in set(kept["time"])
+    assert traffic.archive_time("x/20250805-0801-rawSpeedVol-all.xml") == datetime(2025, 8, 5, 8, 1)
 
 
 def test_parse_bulletin_rainfall():
