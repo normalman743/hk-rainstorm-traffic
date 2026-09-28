@@ -2,6 +2,7 @@
 
     warnings      HKO rainstorm + tropical cyclone warning databases -> CSV
     static        detector locations, road segments, daily rainfall
+    holidays      Hong Kong general holidays 2018-2027 (merged archived versions)
     select-days   build data/interim/day_manifest.csv (event + control days)
     fetch         download archived snapshots for given days
 """
@@ -13,6 +14,7 @@ from datetime import date, timedelta
 
 from src.config import ARCHIVED_SOURCES
 from src.download.archive import download_day
+from src.download.holidays import download_holidays
 from src.download.select_days import MANIFEST, read_manifest, select_days, write_manifest
 from src.download.static import download_static
 from src.download.warnings import LEVELS, download_warnings
@@ -29,9 +31,11 @@ def main() -> None:
 
     sub.add_parser("warnings", help="download HKO warning databases")
     sub.add_parser("static", help="download static reference files")
+    sub.add_parser("holidays", help="download Hong Kong public holidays")
 
     sel = sub.add_parser("select-days", help="choose event and control days")
-    sel.add_argument("--years", default="2021-2025", help="e.g. 2022-2025 or 2025")
+    sel.add_argument("--years", default="2022-2025",
+                     help="e.g. 2022-2025 or 2025 (2021 has only ~42 detectors until Nov)")
     sel.add_argument("--min-level", choices=list(LEVELS), default="A",
                      help="lowest warning level that makes an event (A/R/B)")
     sel.add_argument("--months", default="4-10", help="months to keep, e.g. 4-10 (rainy season)")
@@ -53,6 +57,8 @@ def main() -> None:
         download_warnings()
     elif args.command == "static":
         download_static()
+    elif args.command == "holidays":
+        download_holidays()
     elif args.command == "select-days":
         first, _, last = args.years.partition("-")
         m1, _, m2 = args.months.partition("-")

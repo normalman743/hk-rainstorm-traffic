@@ -14,12 +14,12 @@ stored without a time zone, unless stated otherwise.
 
 | ID | Source (provider) | Access | Frequency | History available | Role | Status |
 |----|-------------------|--------|-----------|-------------------|------|--------|
-| S1 | [Traffic Speed, Volume and Road Occupancy (Raw Data)](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads), `rawSpeedVol-all.xml` (TD) | Historical Archive API | 30 s periods, published every 1 min | from Jun 2021 | Target variables | **Required**, downloader done |
+| S1 | [Traffic Speed, Volume and Road Occupancy (Raw Data)](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads), `rawSpeedVol-all.xml` (TD) | Historical Archive API | 30 s periods, published every 1 min | from Jun 2021 (but only 42 detectors until ~Nov 2021) | Target variables | **Required**, done (download + parse) |
 | S2 | [Locations of Traffic Detectors](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv), CSV (TD) | Direct download | Static | Latest version only | Detector attributes, spatial join | **Required**, downloader done |
-| S3 | [Current Weather Report](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report), `CurrentWeather.xml` (HKO) | Historical Archive API | Hourly | from Jun 2021 | **District** past-hour rainfall | **Required**, downloader done, parser to do |
+| S3 | [Current Weather Report](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report), `CurrentWeather.xml` (HKO) | Historical Archive API | Hourly | from Jun 2021 | **District** past-hour rainfall | **Required**, done (download + parse) |
 | S4 | [Rainstorm Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml), `rstorm.dat` (HKO) | Direct download | Per event | since Mar 1998 | Warning state at each time | **Required**, done |
 | S5 | [Tropical Cyclone Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml), `tc.dat` (HKO) | Direct download | Per event | since 1946 | Exclude typhoon periods | **Required**, done |
-| S6 | [Hong Kong Public Holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal), `en.json` (1823) | Direct download (2025–27) + Historical Archive (older versions) | Yearly | 2020–2027 across archived versions | Working day / weekend / holiday | **Required**, downloader to do |
+| S6 | [Hong Kong Public Holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal), `en.json` (1823) | Direct download (2025–27) + Historical Archive (older versions) | Yearly | 2018–2027 across archived versions | Working day / weekend / holiday | **Required**, done |
 | S7 | [Gridded Rainfall Nowcast](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv), CSV (HKO) | Historical Archive API | ~every 15 min | from ~Jul 2022 | Local (~2 km) rainfall proxy | Optional, downloader to do |
 | S8 | [Daily Total Rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall), `daily_HKO_RF_ALL.csv` (HKO) | Direct download | Daily | since 1884 | Day-level sanity checks | Auxiliary, done |
 
@@ -52,7 +52,7 @@ Nested XML: file → period → detector → lane. Each published file holds **t
 | lane | `speed` | integer | Average speed of lane | km/h; median 70; max 300 (outlier) |
 | lane | `occupancy` | integer | Occupancy of lane | % of time the detector is occupied; 0–100, plus `-1` in 60 rows |
 | lane | `volume` | integer | – | vehicles in the 30 s period; 0–61 |
-| lane | `s.d.` | decimal | – | standard deviation of speed |
+| lane | `s.d.` | decimal | – | standard deviation of speed; **only from ~18 Nov 2021** |
 | lane | `valid` | `Y`/`N` | – | TD validity flag; `N` = 0.5 % of rows |
 
 ### S2 — Detector locations (`traffic_speed_volume_occ_info.csv`)
@@ -156,7 +156,8 @@ PK = primary key.
 
 ### `traffic_lane` — cleaned-input fact table (from S1)
 
-`data/processed/traffic_lane/date=YYYY-MM-DD/part.parquet`, ~3.6 M rows and ~10 MB per day.
+`data/processed/traffic_lane/<YYYY>/<YYYYMMDD>.parquet` (one file per archive day), ~3.6 M rows and ~11 MB per day.
+Built by `src/parse/traffic.py` via `python -m src.pipeline`; read with `src.data.load_traffic_lane`.
 
 | Column | Type | PK | Description |
 |--------|------|----|-------------|
@@ -166,7 +167,7 @@ PK = primary key.
 | `speed` | int16 | | km/h, as published |
 | `occupancy` | int16 | | %, as published |
 | `volume` | int16 | | vehicles / 30 s |
-| `sd` | float32 | | speed s.d. |
+| `sd` | float32 | | speed s.d.; missing before ~18 Nov 2021 |
 | `valid` | category | | `Y`/`N`, as published |
 
 Only exact duplicates are removed at this stage. All other cleaning choices
@@ -189,17 +190,23 @@ dropped because S2 and `time` + 30 s already provide them.
 
 ### `rainfall_district` — fact (from S3)
 
+`data/processed/rainfall_district/<YYYY>/<YYYYMMDD>.parquet`, one row per bulletin × 18 districts.
+Built by `src/parse/weather.py`; read with `src.data.load_rainfall_district`.
+
 | Column | Type | PK | Description |
 |--------|------|----|-------------|
 | `period_end` | timestamp | ✓ | End of the 1-h accumulation window, e.g. 07:45 |
-| `district` | string | ✓ | 18 standard names |
-| `period_start` | timestamp | | usually `period_end` − 1 h |
-| `rain_min_mm` | float | | lowest gauge in the district |
-| `rain_max_mm` | float | | highest gauge in the district |
-| `bulletin_time` | timestamp | | time the bulletin was issued |
+| `district` | category | ✓ | 18 standard names (TD spelling, see §5) |
+| `period_start` | timestamp | | `period_end` − 1 h |
+| `rain_min_mm` | float32 | | lowest gauge in the district (0 if not listed) |
+| `rain_max_mm` | float32 | | highest gauge in the district (0 if not listed) |
+| `bulletin_time` | timestamp | | when the bulletin was issued (from its title, not the archive time) |
+| `listed` | bool | | district appeared in the rainfall sentence |
+| `section_present` | bool | | bulletin had a rainfall sentence at all |
 
-A district is absent when no rain was reported there. Treat an absence as
-0 mm only when the bulletin exists.
+A district not listed in a bulletin that has the rainfall sentence recorded no
+rain. A bulletin without the sentence means no rain anywhere. Its period is
+inferred as the last HH:45 at least 15 min before `bulletin_time`.
 
 ### `rainfall_grid` — optional fact (from S7)
 
@@ -244,6 +251,8 @@ are merged, e.g. Amber → Red → Black → Amber.
 
 ### `public_holidays` — dimension (from S6)
 
+`data/raw/calendar/public_holidays.csv`, 2018–2027 (17 per year), merged from 10 archived versions + the live file.
+
 | Column | Type | PK | Description |
 |--------|------|----|-------------|
 | `date` | date | ✓ | |
@@ -254,6 +263,12 @@ are merged, e.g. Amber → Red → Black → Amber.
 One row per date: `date` (PK), `weekday`, `is_weekend`, `is_holiday`,
 `day_type` (`workday` / `saturday` / `sunday_holiday`), `has_rainstorm_warning`,
 `has_tc_signal`, `manifest_role` (`event` / `control` / none).
+
+### `coverage` — pipeline log
+
+`data/processed/coverage.csv`, one row per (`source`, `date`): `status` (`ok` / `no_data` / `failed`),
+`n_snapshots`, `n_rows_raw`, `n_rows`, `n_periods`, `n_detectors`, `has_sd` (traffic),
+`n_bulletins`, `n_with_rain_section`, `max_rain_mm` (weather), `error`.
 
 ### `day_manifest` — download plan (existing)
 
@@ -289,6 +304,9 @@ is a preprocessing experiment.
 
 | Source | Issue | Handling |
 |--------|-------|----------|
+| S1 | Detector network grew: 42 detectors (Jul 2021), 554 (Dec 2021), ~680 (2023), 770 (2025) | Study years 2022–2025; per-detector baselines |
+| S1 | `s.d.` element missing before ~18 Nov 2021 | Parser treats it as optional (`sd` = NaN) |
+| S1 | Snapshots per day vary by month (≈ 530–1,430) | Coverage recorded per day in `data/processed/coverage.csv` |
 | S1 | File time ≠ measurement time: a file archived at 08:01 holds 07:53–07:54 | Use `period_from` |
 | S1 | Adjacent files overlap (~9 % duplicate rows); bundles occasionally store a file twice | Deduplicate on (`time`, `detector_id`, `lane`) |
 | S1 | Only 1,730 of 2,880 periods per day present (~40 % missing) | Gap handling = experiment P6 |
@@ -300,6 +318,7 @@ is a preprocessing experiment.
 | S3 | Rainfall is a min–max range per district, not a point value | Choice of min / mid / max = experiment P7 |
 | S3 | Free-text format; wording may vary over the years | Regex parser with unit tests on samples from each year |
 | S4 / S5 | `24:00` end times; provisional rows after `UUUU` | Handled in parser |
+| S3 | Archive time ≠ bulletin time (file archived 20:02 holds the 19:02 bulletin); some bulletins are late (01:46) | Use the bulletin's own timestamp; anchor the period to it |
 | S6 | Each file covers only 3 years | Merge archived versions, deduplicate by date |
 | S7 | Forecast, not observation; starts ~Jul 2022 | Optional sensitivity check only |
 
@@ -310,9 +329,9 @@ is a preprocessing experiment.
 | Scope | Days | S1 ZIP (download) | `traffic_lane` Parquet | S3 |
 |-------|------|-------------------|------------------------|----|
 | 1 day | 1 | 31 MB | 10 MB | 50 kB |
-| Red+ events + controls, 2021–2025 | 75 | ~2.3 GB | ~0.8 GB | ~4 MB |
-| Amber+ events + controls, 2021–2025 | 362 | ~11 GB | ~3.8 GB | ~18 MB |
-| Full archive (Jun 2021 – Sep 2026) | ~1,950 | ~64 GB | ~20 GB | ~0.1 GB |
+| Red+ events + controls, 2022–2025 | 59 | ~1.8 GB | ~0.7 GB | ~3 MB |
+| Amber+ events + controls, 2022–2025 | 298 | ~9.2 GB | ~3.3 GB | ~15 MB |
+| Full archive (Jun 2021 – Sep 2026) | ~1,950 | ~64 GB | ~21 GB | ~0.1 GB |
 
 The pipeline converts each day's ZIP to Parquet and then deletes the ZIP, so
 disk usage is roughly the Parquet column.
