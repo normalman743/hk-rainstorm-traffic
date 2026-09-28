@@ -5,7 +5,8 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 > Course project. The focus is **data preprocessing and integration**: every
 > major cleaning / aggregation / matching decision is treated as an experimental
 > variable, and we measure how it changes the downstream results.
-> See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan.
+> See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan and
+> [`docs/database_description.md`](docs/database_description.md) for every source, field and table.
 
 ## Research questions
 
