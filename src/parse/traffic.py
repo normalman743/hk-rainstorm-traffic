@@ -15,6 +15,10 @@ Midnight quirk: the period starting at 00:00 is published with the previous
 day's `<date>` (e.g. 2025-08-05 00:00:00 appears as 2025-08-04 00:00:00). When
 the archive time of the file is known, a period more than 12 h older than it
 is moved forward one day.
+
+Truncated files: a few archived files are cut off mid-document. The scan keeps
+the complete lane readings before the cut and counts such files
+(`n_truncated_files`).
 """
 
 from __future__ import annotations
@@ -46,12 +50,20 @@ _TOKEN = re.compile(
 )
 
 
-def _scan(items: Iterable[tuple[datetime | None, bytes]]) -> tuple[dict[str, list], int]:
-    """items: (archive time of the file or None, XML). Returns columns and the number of periods re-dated."""
+_END_TAG = b"</raw_speed_volume_list>"
+
+
+def _scan(items: Iterable[tuple[datetime | None, bytes]]) -> tuple[dict[str, list], dict[str, int]]:
+    """items: (archive time of the file or None, XML).
+
+    Returns columns and counts of re-dated periods and truncated files.
+    """
     cols: dict[str, list] = {c: [] for c in COLUMNS}
     times, dets, lanes, speeds, occs, vols, sds, valids = cols.values()
-    n_fixed = 0
+    n_fixed = n_truncated = 0
     for archived_at, xml in items:
+        if _END_TAG not in xml[-64:]:
+            n_truncated += 1
         day = stamp = det = None
         for m in _TOKEN.finditer(xml.decode("utf-8", "replace")):
             if m.group(4) is not None:
@@ -78,7 +90,7 @@ def _scan(items: Iterable[tuple[datetime | None, bytes]]) -> tuple[dict[str, lis
                         n_fixed += 1
             else:
                 day = m.group(1)
-    return cols, n_fixed
+    return cols, {"n_periods_redated": n_fixed, "n_truncated_files": n_truncated}
 
 
 def _numeric(values: list, dtype: str) -> pd.array:
@@ -124,7 +136,7 @@ def parse_day_zip(path: Path) -> tuple[pd.DataFrame, dict]:
     """
     with zipfile.ZipFile(path) as zf:
         names = zf.namelist()
-        cols, n_fixed = _scan((archive_time(name), zf.read(name)) for name in names)
+        cols, counts = _scan((archive_time(name), zf.read(name)) for name in names)
     df = to_frame(cols)
     n_raw = len(df)
     df = df.drop_duplicates(KEY).sort_values(["detector_id", "lane", "time"], ignore_index=True)
@@ -135,6 +147,6 @@ def parse_day_zip(path: Path) -> tuple[pd.DataFrame, dict]:
         "n_periods": int(df["time"].nunique()),
         "n_detectors": int(df["detector_id"].nunique()),
         "has_sd": bool(df["sd"].notna().any()),
-        "n_periods_redated": n_fixed,
+        **counts,
     }
     return df, stats

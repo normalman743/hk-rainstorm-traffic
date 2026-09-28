@@ -137,6 +137,8 @@ These are material for the preprocessing experiments. The full list is in
   re-dates it using the file's archive time (`n_periods_redated` in coverage).
 - **Gaps:** snapshots per day vary by month (≈ 530–1,430). On 5 Aug 2025 only 1,730 of
   2,880 30-second periods are present.
+- **Truncated files:** a few archived XML files are cut off (1 of 919 on 29 Jul 2025). The parser keeps
+  the complete readings before the cut and counts such files (`n_truncated_files` in coverage).
 - **Overlap:** adjacent snapshots repeat readings (~9 % of rows), and bundles sometimes store
   a file twice. Both are deduplicated.
 - **Placeholder speeds:** when `volume = 0` (~28 % of readings), `speed` is the posted limit

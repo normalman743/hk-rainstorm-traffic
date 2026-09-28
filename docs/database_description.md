@@ -283,7 +283,7 @@ One row per date: `date` (PK), `weekday`, `is_weekend`, `is_holiday`,
 ### `coverage` — pipeline log
 
 `data/processed/coverage.csv`, one row per (`source`, `date`): `status` (`ok` / `no_data` / `failed`),
-`n_snapshots`, `n_rows_raw`, `n_rows`, `n_periods`, `n_detectors`, `has_sd` (traffic),
+`n_snapshots`, `n_rows_raw`, `n_rows`, `n_periods`, `n_detectors`, `has_sd`, `n_periods_redated`, `n_truncated_files` (traffic),
 `n_bulletins`, `n_with_rain_section`, `max_rain_mm` (weather), `error`.
 
 ### `day_manifest` — download plan (existing)
@@ -324,6 +324,7 @@ is a preprocessing experiment.
 | S1 | `s.d.` element missing before ~18 Nov 2021 | Parser treats it as optional (`sd` = NaN) |
 | S1 | Snapshots per day vary by month (≈ 530–1,430) | Coverage recorded per day in `data/processed/coverage.csv` |
 | S1 | File time ≠ measurement time: a file archived at 08:01 holds 07:53–07:54 | Use `period_from` |
+| S1 | A few archived files are truncated mid-document (1 of 919 on 29 Jul 2025) | Keep complete readings before the cut; count in `n_truncated_files` |
 | S1 | The 00:00 period is published with the previous day's `<date>` | Re-dated using the file's archive time (`n_periods_redated` in coverage) |
 | S1 | Adjacent files overlap (~9 % duplicate rows); bundles occasionally store a file twice | Deduplicate on (`time`, `detector_id`, `lane`) |
 | S1 | Only 1,730 of 2,880 periods per day present (~40 % missing) | Gap handling = experiment P6 |

@@ -60,8 +60,19 @@ def test_parse_traffic_day_zip_drops_overlap(tmp_path):
         zf.writestr("20250805-0801-rawSpeedVol-all.xml", XML_2025)
         zf.writestr("20250805-0802-rawSpeedVol-all.xml", XML_2025)  # overlapping snapshot
     df, stats = traffic.parse_day_zip(path)
-    assert stats["n_rows_raw"] == 8 and stats["n_rows"] == 4 and stats["n_periods_redated"] == 0
+    assert stats["n_rows_raw"] == 8 and stats["n_rows"] == 4 and stats["n_periods_redated"] == 0 and stats["n_truncated_files"] == 0
     assert stats["n_periods"] == 2 and stats["n_detectors"] == 2 and stats["has_sd"]
+
+
+def test_truncated_file_keeps_complete_readings(tmp_path):
+    cut = XML_2025[:XML_2025.index(b"<lane><lane_id>Slow Lane")] + b"<lane><lane_id>Slow La"
+    path = tmp_path / "20250805.zip"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("20250805-0801-rawSpeedVol-all.xml", cut)
+        zf.writestr("20250805-0802-rawSpeedVol-all.xml", XML_2021.replace(b"2021-07-01", b"2025-08-05"))
+    df, stats = traffic.parse_day_zip(path)
+    assert stats["n_truncated_files"] == 1
+    assert set(df["detector_id"]) == {"AID01101", "AID08101"}  # the cut lane is dropped, earlier ones kept
 
 
 def test_midnight_period_is_redated():

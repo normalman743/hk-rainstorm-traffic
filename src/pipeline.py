@@ -42,7 +42,7 @@ TABLES = {
 }
 COVERAGE = PROCESSED_DIR / "coverage.csv"
 COVERAGE_FIELDS = ["source", "date", "status", "n_snapshots", "n_rows_raw", "n_rows", "n_periods",
-                   "n_detectors", "has_sd", "n_periods_redated", "n_bulletins", "n_with_rain_section",
+                   "n_detectors", "has_sd", "n_periods_redated", "n_truncated_files", "n_bulletins", "n_with_rain_section",
                    "max_rain_mm", "error"]
 
 
