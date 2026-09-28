@@ -35,6 +35,12 @@ import pandas as pd
 COLUMNS = ["time", "detector_id", "lane", "speed", "occupancy", "volume", "sd", "valid"]
 KEY = ["time", "detector_id", "lane"]
 
+# Bump when the output of this parser changes; the pipeline rebuilds files made by older versions.
+#   1: initial regex parser
+#   2: midnight quirk: 00:00 period re-dated using the archive time
+#   3: truncated files counted (n_truncated_files)
+VERSION = 3
+
 # One alternation, scanned once per file. Groups:
 # 1 date | 2 period_from | 3 detector_id | 4-9 lane fields (sd optional)
 _TOKEN = re.compile(

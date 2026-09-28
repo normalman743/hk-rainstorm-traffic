@@ -11,9 +11,12 @@ runs in a pool of --jobs worker processes (CPU-bound, ~20 s and ~1.6 GB RAM per
 traffic day). Downloads stay at most --jobs days ahead of parsing, so only a
 few ZIPs sit on disk at once.
 
-Days whose Parquet file already exists are skipped, so the command can be
-re-run after an interruption. A day that fails is logged in coverage.csv and
-the run continues.
+Days whose Parquet file already exists *and* was written by the current parser
+version are skipped, so the command can be re-run after an interruption. Files
+written by an older parser version (or before versioning) are rebuilt. A day
+that fails is logged in coverage.csv and the run continues.
+
+After the run, `src.validate` checks the processed days (skip with --no-validate).
 
 Each day's file holds everything archived on that day, which includes a few
 minutes of the previous day (files lag measurement time). Use
@@ -35,19 +38,26 @@ from src.config import PROCESSED_DIR
 from src.download.archive import download_day
 from src.download.select_days import read_manifest
 from src.parse import traffic, weather
+from src.storage import file_version, write_parquet
 
+# source -> (table name, parser, parser version)
 TABLES = {
-    "traffic": ("traffic_lane", traffic.parse_day_zip),
-    "weather": ("rainfall_district", weather.parse_day_zip),
+    "traffic": ("traffic_lane", traffic.parse_day_zip, traffic.VERSION),
+    "weather": ("rainfall_district", weather.parse_day_zip, weather.VERSION),
 }
 COVERAGE = PROCESSED_DIR / "coverage.csv"
-COVERAGE_FIELDS = ["source", "date", "status", "n_snapshots", "n_rows_raw", "n_rows", "n_periods",
+COVERAGE_FIELDS = ["source", "date", "status", "version", "n_snapshots", "n_rows_raw", "n_rows", "n_periods",
                    "n_detectors", "has_sd", "n_periods_redated", "n_truncated_files", "n_bulletins", "n_with_rain_section",
                    "max_rain_mm", "error"]
 
 
 def table_path(source: str, day: date) -> Path:
     return PROCESSED_DIR / TABLES[source][0] / f"{day:%Y}" / f"{day:%Y%m%d}.parquet"
+
+
+def is_current(source: str, day: date) -> bool:
+    """True if the day's file exists and was written by the current parser version."""
+    return file_version(table_path(source, day)) == TABLES[source][2]
 
 
 def _read_coverage() -> dict[tuple[str, str], dict]:
@@ -69,21 +79,20 @@ def _write_coverage(rows: dict[tuple[str, str], dict]) -> None:
 
 def convert_day(source: str, day: date, raw: Path, keep_raw: bool = False) -> dict:
     """Parse one downloaded day into Parquet (runs in a worker process)."""
-    df, stats = TABLES[source][1](raw)
+    table, parse, version = TABLES[source]
+    df, stats = parse(raw)
     out = table_path(source, day)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out.with_suffix(".parquet.part")
-    df.to_parquet(tmp, compression="zstd", index=False)
-    tmp.replace(out)
+    write_parquet(df, out, {"table": table, "version": version, "date": day.isoformat(), **stats})
     if not keep_raw:
         raw.unlink()
-    return {"source": source, "date": day.isoformat(), "status": "ok", "n_rows": len(df),
-            "size_mb": out.stat().st_size / 1e6, **stats}
+    return {"source": source, "date": day.isoformat(), "status": "ok", "version": version,
+            "n_rows": len(df), "size_mb": out.stat().st_size / 1e6, **stats}
 
 
 def run(tasks: list[tuple[str, date]], jobs: int = 3, workers: int = 16, keep_raw: bool = False) -> int:
     """Process (source, day) tasks; returns the number of failures."""
-    todo = [t for t in tasks if not table_path(*t).exists()]
+    todo = [t for t in tasks if not is_current(*t)]
+    stale = [t for t in todo if table_path(*t).exists()]
     coverage = _read_coverage()
     failures = 0
 
@@ -115,7 +124,10 @@ def run(tasks: list[tuple[str, date]], jobs: int = 3, workers: int = 16, keep_ra
             tqdm(desc="download", unit="file", position=1, leave=False) as dl_bar, \
             ProcessPoolExecutor(max_workers=jobs) as pool:
         if len(todo) < len(tasks):
-            tqdm.write(f"[skip] {len(tasks) - len(todo)} day(s) already converted")
+            tqdm.write(f"[skip] {len(tasks) - len(todo)} day(s) already converted with the current parser")
+        for source, day in stale:
+            tqdm.write(f"[stale] {source} {day}: made by parser version "
+                       f"{file_version(table_path(source, day))}, current {TABLES[source][2]}; rebuilding")
         pending: dict[Future, tuple[str, date]] = {}
         for source, day in todo:
             collect(pending, days_bar, block_until=jobs)  # keep at most `jobs` days waiting to parse
@@ -147,6 +159,7 @@ def main() -> None:
                         help="parallel parse processes (each needs ~1.6 GB RAM for a traffic day; default 3)")
     parser.add_argument("--workers", type=int, default=16, help="download threads per day (default 16)")
     parser.add_argument("--keep-raw", action="store_true", help="keep the downloaded ZIPs")
+    parser.add_argument("--no-validate", action="store_true", help="skip the checks after the run")
     args = parser.parse_args()
 
     if args.manifest:
@@ -160,6 +173,9 @@ def main() -> None:
     tasks = [(source, day) for source in args.sources for day in days]
     failures = run(tasks, jobs=args.jobs, workers=args.workers, keep_raw=args.keep_raw)
     print(f"done: {len(tasks)} tasks, {failures} failed -> {COVERAGE}")
+    if not args.no_validate:
+        from src import validate  # imported here: validate imports this module
+        validate.run(days, tables=[TABLES[s][0] for s in args.sources])
 
 
 if __name__ == "__main__":

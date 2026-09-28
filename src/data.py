@@ -8,23 +8,40 @@ whose timestamp falls on a requested day, and deduplicate.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Iterable
 
 import pandas as pd
+from pandas.api.types import union_categoricals
 
 from src.pipeline import table_path
 
 
+def _concat(frames: list[pd.DataFrame]) -> pd.DataFrame:
+    """Concatenate while keeping categorical columns categorical (pandas falls back to
+    object dtype when category sets differ, which is slow on millions of rows)."""
+    frames = [f for f in frames if len(f)]
+    if len(frames) <= 1:
+        return frames[0] if frames else pd.DataFrame()
+    for col in frames[0].columns:
+        if isinstance(frames[0][col].dtype, pd.CategoricalDtype):
+            cats = union_categoricals([f[col] for f in frames]).categories
+            for f in frames:
+                f[col] = f[col].cat.set_categories(cats)
+    return pd.concat(frames, ignore_index=True)
+
+
 def _load(source: str, days: Iterable[date], time_col: str, key: list[str], columns=None) -> pd.DataFrame:
-    days = sorted(set(days))
-    wanted = set(days)
-    files = sorted({p for d in days for p in (table_path(source, d), table_path(source, d + timedelta(days=1)))
+    wanted = pd.DatetimeIndex(sorted({pd.Timestamp(d) for d in days}))
+    paths = sorted({p for d in wanted for p in (table_path(source, d.date()), table_path(source, (d + pd.Timedelta(days=1)).date()))
                     if p.exists()})
-    if not files:
-        return pd.DataFrame()
-    df = pd.concat([pd.read_parquet(p, columns=columns) for p in files], ignore_index=True)
-    df = df[df[time_col].dt.date.isin(wanted)]
+    frames = []
+    for p in paths:
+        f = pd.read_parquet(p, columns=columns)
+        frames.append(f[f[time_col].dt.normalize().isin(wanted)])
+    df = _concat(frames)
+    if df.empty:
+        return df
     return df.drop_duplicates(key).sort_values(key, ignore_index=True)
 
 

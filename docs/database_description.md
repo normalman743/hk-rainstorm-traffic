@@ -29,127 +29,25 @@ stored without a time zone, unless stated otherwise.
 |--------|---------|
 | [Rainfall in the past hour from automatic weather stations](https://data.gov.hk/en-data/dataset/hk-hko-rss-rainfall-in-the-past-hour) (`hourlyRainfall.php`, 36 stations) | **Not archived.** The Historical Archive API returns `Not Found` for this resource in any date range, so only live data can be collected (from now on). This is why station-level matching is replaced by **district** rainfall (S3). Optionally, gridded nowcasts (S7) give sub-district detail. |
 | [HKO weather station locations](https://www.hko.gov.hk/en/cis/stn.htm) | Only needed for station-level rainfall. With the station feed unavailable historically, it is not required. It becomes relevant only if we add daily per-station rainfall (`daily_<STN>_RF_ALL.csv`). |
-| [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv) (`speed_segments_info.csv`) | Contains only `irn_id` and a route flag. It has no geometry and no detector mapping, and it belongs to the processed segment-speed feed (`irnAvgSpeed-all.xml`). Our unit of analysis is the detector, so it is not needed. |
+| [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv) (`speed_segments_info.csv`) | Contains only `irn_id` and `ucase(route)`, the route number (174 values). It has no geometry and no detector mapping, and it belongs to the processed segment-speed feed (`irnAvgSpeed-all.xml`). Our unit of analysis is the detector, so it is not needed. |
 
 ---
 
 ## 2. Raw data dictionary
 
-### S1 — Traffic detector readings (`rawSpeedVol-all.xml`)
-
-Nested XML: file → period → detector → lane. Each published file holds **two
-30-second periods**. Official descriptions are quoted from the TD schema
-[`SpeedVolOcc-BR.xsd`](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/SpeedVolOcc-BR.xsd).
-
-| Level | Field | Type | Official description | Notes / observed values (5 Aug 2025) |
-|-------|-------|------|----------------------|------------------------------|
-| file | `date` | date | Date of the data | e.g. `2025-08-05` |
-| period | `period_from` | time | Timestamp of data period starts | `07:53:00` |
-| period | `period_to` | time | Timestamp of data period ends | always `period_from` + 30 s |
-| detector | `detector_id` | string | Reference ID for AID | `AID01101`; 772 detectors report on this day |
-| detector | `direction` | string | Direction of AID | `South East`; duplicated in S2 |
-| lane | `lane_id` | string | Reference ID for Lane of AID | `Fast Lane`, `Middle Lane`, `Slow Lane`, `Middle Lane 1`–`4` |
-| lane | `speed` | integer | Average speed of lane | km/h; median 70; max 300 (outlier) |
-| lane | `occupancy` | integer | Occupancy of lane | % of time the detector is occupied; 0–100, plus `-1` in 60 rows |
-| lane | `volume` | integer | – | vehicles in the 30 s period; 0–61 |
-| lane | `s.d.` | decimal | – | standard deviation of speed; **only from ~18 Nov 2021** |
-| lane | `valid` | `Y`/`N` | – | TD validity flag; `N` = 0.5 % of rows |
-
-### S2 — Detector locations (`traffic_speed_volume_occ_info.csv`)
-
-One row per detector (807 rows).
-
-| Field | Description |
-|-------|-------------|
-| `AID_ID_Number` | Detector ID; joins to S1 `detector_id` |
-| `District` | One of the 18 districts (TD spelling, e.g. `Southern`, `Central & Western`) |
-| `Road_EN` / `Road_TC` / `Road_SC` | Location text, e.g. "Aberdeen Praya Road near Abba House - Eastbound" |
-| `Easting` / `Northing` | HK 1980 Grid coordinates (m) |
-| `Latitude` / `Longitude` | WGS84 |
-| `Direction` | Traffic direction |
-| `Rotation` | Bearing in degrees (for map arrows) |
-
-### S3 — Current Weather Report (`CurrentWeather.xml`)
-
-An RSS 2.0 feed. The data is free text inside an HTML `<description>`
-(CDATA), so it must be parsed with regular expressions.
-
-| Element | Content |
-|---------|---------|
-| `item/title` | "Bulletin updated at 08:02 HKT 05/08/2025" |
-| `item/pubDate` | Same moment, in GMT |
-| `item/category` | Weather category code |
-| `description` → HKO temperature, humidity | "Air temperature : 25 degrees Celsius", "Relative Humidity : 95 per cent" |
-| `description` → warning reminder | "The Black Rainstorm Warning Signal has been issued." |
-| `description` → temperatures at ~25 stations | table of station name → °C |
-| **`description` → district rainfall** | "Between 6:45 and 7:45 a.m. … The rainfall recorded in various regions were: Southern District 27 to 60 mm; …", i.e. the **min–max past-hour rainfall across gauges in each of the 18 districts** |
-
-### S4 — Rainstorm warning signals (`rstorm.dat`)
-
-Tab-separated, no header, one row per signal. Rows after a `UUUU` line are
-provisional.
-
-| Col | Description |
-|-----|-------------|
-| 1 | Colour: `A` Amber, `R` Red, `B` Black |
-| 2–6 | Start: year, month, day, hour, minute |
-| 7–11 | End: year, month, day, hour, minute (midnight may be written `24:00`) |
-| 12–13 | Duration: hours, minutes |
-
-### S5 — Tropical cyclone signals (`tc.dat`)
-
-Tab-separated, no header, UTF-8 BOM, one row per signal.
-
-| Col | Description |
-|-----|-------------|
-| 1 | Cyclone code, e.g. `202603` |
-| 2 | Intensity, e.g. `T`, `ST`, `SuperT`; rows with `MSN` are not cyclone signals and are skipped |
-| 3 | Name (`NIL` = unnamed) |
-| 4 | Signal number: 1, 3, 8, 9, 10 |
-| 5 | Direction for No. 8 (`NE`/`NW`/`SE`/`SW`), else `X` or `*` |
-| 6 / 7 / 8 / 9 | Start: `HHMM` (leading zeros dropped), day, month, year |
-| 10 | Flag (`X`/`S`, undocumented; appears only in old records) |
-| 11 / 12 / 13 / 14 | End: `HHMM`, day, month, year |
-| 15 | Flag, as col 10 |
-| 16 | Duration (`HHHMM`) |
-
-### S6 — Public holidays (`en.json`)
-
-iCalendar-style JSON: `vcalendar[0].vevent[]`. Each file covers three years. The
-current file covers 2025–2027; archived versions cover 2020–2022, 2021–2023
-and 2023–2025.
-
-| Field | Description |
-|-------|-------------|
-| `dtstart` | `["YYYYMMDD", {"value": "DATE"}]`, holiday date |
-| `dtend` | Following day (exclusive end) |
-| `summary` | Holiday name, e.g. "The first day of January" |
-| `uid` | `YYYYMMDD@1823.gov.hk` |
-| `dtstamp`, `transp` | Calendar metadata (unused) |
-
-### S7 — Gridded rainfall nowcast (optional)
-
-CSV, ~58,000 rows per file: a 121 × 121 lat/lon grid (≈ 2 km spacing) × 4 lead times.
-
-| Field | Description |
-|-------|-------------|
-| `Updated Date and Time (in Hong Kong Time)` | Issue time, `YYYYMMDDHHMM` |
-| `Ending Date and Time (in Hong Kong Time)` | End of the 30-min window being forecast (+30, +60, +90, +120 min) |
-| `Latitude (degree)` / `Longitude (degree)` | Grid-cell centre |
-| `Half-hourly Nowcast Accumulated Rainfall (mm)` | Rainfall forecast for that 30-min window |
-
-This is a **radar-based forecast**, not a gauge measurement. We would use only the
-first lead time, as a proxy for current local rainfall.
-
-### S8 — Daily total rainfall at HKO (`daily_HKO_RF_ALL.csv`)
-
-Two title lines, then `年/Year, 月/Month, 日/Day, 數值/Value, 數據完整性/data Completeness`,
-then footnote lines. `Value` is in mm; `微量/Trace` means < 0.05 mm, `***` means unavailable.
-Completeness: `C` = complete, `#` = incomplete.
+Every raw source (format, access, structure, each field with its official description,
+observed values and quirks) is documented in **[`raw_data.md`](raw_data.md)**, using the
+same IDs S1–S8. How each source is turned into the tables below is described in
+**[`processing.md`](processing.md)**.
 
 ---
 
 ## 3. Processed database schema
+
+Every processed Parquet file stores a JSON record in its schema metadata (key `hkrt`) with the
+table name, the **code version** that produced it, the date and the parse statistics.
+Read it with `src.storage.read_meta(path)`. Outdated files are rebuilt by the pipeline and flagged by
+`src.validate` (see [`processing.md`](processing.md#versioning-rules)).
 
 Tables are stored as Parquet (large, partitioned by day) or CSV (small).
 PK = primary key.
@@ -283,8 +181,15 @@ One row per date: `date` (PK), `weekday`, `is_weekend`, `is_holiday`,
 ### `coverage` — pipeline log
 
 `data/processed/coverage.csv`, one row per (`source`, `date`): `status` (`ok` / `no_data` / `failed`),
-`n_snapshots`, `n_rows_raw`, `n_rows`, `n_periods`, `n_detectors`, `has_sd`, `n_periods_redated`, `n_truncated_files` (traffic),
+`version`, `n_snapshots`, `n_rows_raw`, `n_rows`, `n_periods`, `n_detectors`, `has_sd`, `n_periods_redated`, `n_truncated_files` (traffic),
 `n_bulletins`, `n_with_rain_section`, `max_rain_mm` (weather), `error`.
+
+### `validation_report.md` / `validation_checks.csv` — data checks
+
+`data/processed/`, written by `python -m src.validate` (and after every `src.pipeline` run).
+The CSV has one row per check: `table`, `day`, `name`, `level` (`FAIL` / `WARN` / `INFO` / `OK`),
+`value`, `detail`. The Markdown report adds a profile of each table (NA, unique values, most
+frequent values). See [`processing.md`](processing.md#validation-srcvalidatepy).
 
 ### `day_manifest` — download plan (existing)
 
