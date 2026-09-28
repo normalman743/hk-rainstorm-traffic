@@ -1,6 +1,7 @@
 # large / regenerable data stays local; small reference tables are committed
 data/raw/
 data/interim/
+data/processed/
 *.zip
 .ipynb_checkpoints/
 __pycache__/
