@@ -6,7 +6,9 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 > major cleaning / aggregation / matching decision is treated as an experimental
 > variable, and we measure how it changes the downstream results.
 > See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan and
-> [`docs/database_description.md`](docs/database_description.md) for every source, field and table.
+> [`docs/raw_data.md`](docs/raw_data.md) (every raw source and field),
+> [`docs/processing.md`](docs/processing.md) (what each pipeline step does) and
+> [`docs/database_description.md`](docs/database_description.md) (processed tables).
 
 ## Research questions
 
@@ -57,8 +59,11 @@ requests (~31 MB compressed). The pipeline then converts the day to Parquet
 
 ## Pipeline
 
-Four steps. Every step skips work that is already done, so any step can be re-run
-after an interruption. Progress bars show days completed and files downloaded.
+Four steps. Every step skips work that is already done **with the current code
+version** and rebuilds anything older, so any step can be re-run after an interruption
+or a code change. Progress bars show days completed and files downloaded. After step 3,
+`src.validate` checks all processed days and profiles every table (NA, unique values,
+most frequent values); see [`docs/processing.md`](docs/processing.md).
 
 ```bash
 pip install -r requirements.txt
@@ -77,6 +82,9 @@ python -m src.pipeline --manifest                     # or --days 2025-08-05 ...
 
 # 4. Detector x 15-min table -> data/processed/traffic_15min/
 python -m src.aggregate --manifest
+
+# Check everything -> data/processed/validation_report.md (step 3 also runs this automatically)
+python -m src.validate --manifest
 ```
 
 Then in Python:
@@ -112,6 +120,8 @@ ZIPs are on disk at once. Measured: ~24 s per traffic day with `--jobs 3` (downl
 ~34 s with `--jobs 1`. `--keep-raw` keeps the ZIPs. Per-day coverage (snapshots, rows,
 periods, detectors, re-dated periods, bulletins, max rain, errors) goes to
 `data/processed/coverage.csv`. A failed day is logged there and the run continues.
+Then `src.validate` writes `data/processed/validation_report.md` and lists every FAIL / WARN
+(`--no-validate` skips it).
 
 **`aggregate`** writes one row per detector and 15-minute bin: reading counts
 (`n_readings`, `n_periods`, `n_invalid`, `n_zero_volume`, `n_speed_over_130`),
@@ -165,12 +175,14 @@ and the Black Rainstorm of 4–5 Aug 2025.
 ```
 .
 ├── README.md, PROPOSAL.md, requirements.txt
-├── docs/database_description.md
+├── docs/               # raw_data.md, processing.md, database_description.md
 ├── src/
 │   ├── download/       # step 1-2 (+ fetch): archive client, warnings, static files, holidays, day selection
 │   ├── parse/          # traffic XML and weather bulletins -> tables
 │   ├── pipeline.py     # step 3: download -> Parquet -> delete ZIP, parallel, with progress bars
 │   ├── aggregate.py    # step 4: detector x 15-min table
+│   ├── validate.py     # checks + profiles of all tables -> validation_report.md
+│   ├── storage.py      # Parquet files that record the code version that made them
 │   ├── data.py         # loaders for processed tables
 │   └── config.py       # paths and source URLs
 ├── tests/

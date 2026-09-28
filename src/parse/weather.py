@@ -30,6 +30,10 @@ from pathlib import Path
 
 import pandas as pd
 
+# Bump when the output of this parser changes; the pipeline rebuilds files made by older versions.
+#   1: initial parser
+VERSION = 1
+
 DISTRICTS = [
     "Central & Western", "Eastern", "Islands", "Kowloon City", "Kwai Tsing", "Kwun Tong",
     "North", "Sai Kung", "Sha Tin", "Sham Shui Po", "Southern", "Tai Po", "Tsuen Wan",

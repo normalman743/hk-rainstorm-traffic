@@ -28,8 +28,14 @@ from tqdm import tqdm
 from src.config import PROCESSED_DIR
 from src.data import load_traffic_lane
 from src.download.select_days import read_manifest
+from src.pipeline import table_path
+from src.storage import file_version, read_meta, write_parquet
 
 BIN = "15min"
+# Bump when the output of `aggregate` changes. Files are also rebuilt when the
+# traffic_lane files they were built from change (see `_inputs`).
+#   1: initial
+VERSION = 1
 
 
 def out_path(day: date) -> Path:
@@ -70,6 +76,7 @@ def aggregate(lanes: pd.DataFrame, freq: str = BIN) -> pd.DataFrame:
     ).reset_index()
     out["speed_clean"] = (out["w_speed"] / out["w_volume"]).where(out["w_volume"] > 0)
     out = out.drop(columns=["w_speed", "w_volume"])
+    out["detector_id"] = out["detector_id"].astype("category")
     for col in ("n_readings", "n_periods", "n_invalid", "n_zero_volume", "n_speed_over_130"):
         out[col] = out[col].astype("int32")
     for col in ("speed_naive", "speed_clean", "volume_sum", "occupancy_mean"):
@@ -77,19 +84,33 @@ def aggregate(lanes: pd.DataFrame, freq: str = BIN) -> pd.DataFrame:
     return out
 
 
+def _inputs(day: date) -> dict[str, int | None]:
+    """Versions of the traffic_lane files a day's table is built from (None = file missing).
+
+    The next day's file matters too: it holds the last minutes of `day`.
+    """
+    return {d.isoformat(): file_version(table_path("traffic", d)) for d in (day, day + timedelta(days=1))}
+
+
+def is_current(day: date) -> bool:
+    meta = read_meta(out_path(day))
+    return meta is not None and meta.get("version") == VERSION and meta.get("inputs") == _inputs(day)
+
+
 def aggregate_day(day: date, overwrite: bool = False) -> tuple[str, int]:
+    """Returns (status, rows): ok / stale (rebuilt) / skip / missing."""
     out = out_path(day)
-    if out.exists() and not overwrite:
+    existed = out.exists()
+    if not overwrite and is_current(day):
         return "skip", 0
+    inputs = _inputs(day)
     lanes = load_traffic_lane([day])
     if lanes.empty:
         return "missing", 0
     table = aggregate(lanes)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out.with_suffix(".parquet.part")
-    table.to_parquet(tmp, compression="zstd", index=False)
-    tmp.replace(out)
-    return "ok", len(table)
+    write_parquet(table, out, {"table": "traffic_15min", "version": VERSION, "date": day.isoformat(),
+                               "inputs": inputs})
+    return ("stale" if existed and not overwrite else "ok"), len(table)
 
 
 def main() -> None:
@@ -110,13 +131,15 @@ def main() -> None:
     else:
         days = args.days
 
-    counts = {"ok": 0, "skip": 0, "missing": 0}
+    counts = {"ok": 0, "stale": 0, "skip": 0, "missing": 0}
     with tqdm(days, desc="aggregate", unit="day") as bar:
         for day in bar:
             status, rows = aggregate_day(day, overwrite=args.overwrite)
             counts[status] += 1
             if status == "missing":
                 tqdm.write(f"[missing] {day}: no traffic_lane data (run src.pipeline first)")
+            elif status == "stale":
+                tqdm.write(f"[stale] {day}: code or input traffic_lane files changed; rebuilt")
             bar.set_postfix(counts)
     print(f"done: {counts} -> {PROCESSED_DIR / 'traffic_15min'}")
 
