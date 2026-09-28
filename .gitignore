@@ -1,6 +1,7 @@
-data/
+# large / regenerable data stays local; small reference tables are committed
+data/raw/
+data/interim/
 *.zip
-*.parquet
 .ipynb_checkpoints/
 __pycache__/
 .venv/
