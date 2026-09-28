@@ -175,6 +175,22 @@ Only exact duplicates are removed at this stage. All other cleaning choices
 experiment variables P1–P6 in `PROPOSAL.md`. `direction` and `period_to` are
 dropped because S2 and `time` + 30 s already provide them.
 
+### `traffic_15min` — detector × 15-min table (from `traffic_lane`)
+
+`data/processed/traffic_15min/<YYYY>/<YYYYMMDD>.parquet`, built by `python -m src.aggregate`. ~74 k rows and ~0.9 MB per day.
+
+| Column | Type | PK | Description |
+|--------|------|----|-------------|
+| `detector_id` | category | ✓ | |
+| `t_bin` | timestamp | ✓ | start of the 15-min bin |
+| `n_readings` | int32 | | lane readings in the bin |
+| `n_periods` | int32 | | distinct 30-s periods (max 30) |
+| `n_invalid`, `n_zero_volume`, `n_speed_over_130` | int32 | | quality counts |
+| `speed_naive` | float32 | | plain mean of all readings |
+| `speed_clean` | float32 | | volume-weighted mean over `valid == 'Y'` and `volume > 0` |
+| `volume_sum` | float32 | | vehicles, valid readings only |
+| `occupancy_mean` | float32 | | %, valid readings only |
+
 ### `detectors` — dimension (from S2)
 
 | Column | Type | PK | Description |
@@ -308,12 +324,13 @@ is a preprocessing experiment.
 | S1 | `s.d.` element missing before ~18 Nov 2021 | Parser treats it as optional (`sd` = NaN) |
 | S1 | Snapshots per day vary by month (≈ 530–1,430) | Coverage recorded per day in `data/processed/coverage.csv` |
 | S1 | File time ≠ measurement time: a file archived at 08:01 holds 07:53–07:54 | Use `period_from` |
+| S1 | The 00:00 period is published with the previous day's `<date>` | Re-dated using the file's archive time (`n_periods_redated` in coverage) |
 | S1 | Adjacent files overlap (~9 % duplicate rows); bundles occasionally store a file twice | Deduplicate on (`time`, `detector_id`, `lane`) |
 | S1 | Only 1,730 of 2,880 periods per day present (~40 % missing) | Gap handling = experiment P6 |
 | S1 | When `volume = 0` (27.7 % of rows), `speed` holds a placeholder equal to the speed limit (70/80/100/50/110, s.d. = 0), not a measurement | Treat as missing / free-flow, part of experiment P3 |
-| S1 | `occupancy = -1` (60 rows), `speed` up to 300 | Physical-bound filter, experiment P2 |
+| S1 | `occupancy = -1` (60 rows), `speed` up to 300, `speed = 0` with `volume > 0` (5,991 rows on 5 Aug 2025) | Physical-bound filter, experiment P2 |
 | S1 / S2 | 772 detectors report but S2 lists 807; S2 is only the latest version | Inner join; report unmatched IDs |
-| S2 | District spelling: `Central & Western` vs `Central and Western` (1 row) | Normalise |
+| S2 | District spelling: `Central & Western` vs `Central and Western` (1 row); 97 % of `Road_EN` values have trailing spaces | Normalise, strip |
 | S2 / S3 | TD uses `Southern`, HKO uses `Southern District` (also Eastern, Islands, North, Central & Western) | Strip the ` District` suffix, normalise `and` → `&` |
 | S3 | Rainfall is a min–max range per district, not a point value | Choice of min / mid / max = experiment P7 |
 | S3 | Free-text format; wording may vary over the years | Regex parser with unit tests on samples from each year |

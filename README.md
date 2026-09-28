@@ -16,155 +16,164 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 
 ## Data sources
 
-All data is free Hong Kong government open data. Small tables are committed
-(`data/reference/`, `data/weather/`, `data/sample/`); lane-level traffic
-Parquet files are regenerated locally into `data/interim/` (git-ignored).
+All data is free Hong Kong government open data, downloaded by the scripts
+below. Nothing large is committed.
 
 | # | Dataset | Provider | What we use | Resolution | History |
 |---|---------|----------|-------------|------------|---------|
-| 1 | [Traffic Data of Strategic / Major Roads](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads) | Transport Department | Per-lane speed, volume, occupancy, validity flag | 30-second periods, published every 1 min, ~800 detectors | Archived on DATA.GOV.HK from **mid-2021** |
+| 1 | [Traffic Data of Strategic / Major Roads](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads) | Transport Department | Per-lane speed, volume, occupancy, validity flag | 30-second periods, published every 1 min, ~770 detectors | Archived from **Jun 2021** (full network from ~Dec 2021) |
 | 2 | [Traffic detector locations](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv) (CSV) | Transport Department | Detector ID, road name, **district**, lat/lon, direction | Static | – |
-| 3 | [Current Weather Report (RSS)](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report): `CurrentWeather.xml` | Hong Kong Observatory | **Past-hour rainfall range (mm) per district**, warning text | Hourly | Archived on DATA.GOV.HK from **mid-2021** |
-| 4 | [Rainstorm Warning Signals Database](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml) | Hong Kong Observatory | Amber / Red / Black start & end times | Per event | Since March 1998 |
-| 5 | [Daily total rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall) (e.g. `daily_HKO_RF_ALL.csv`) | Hong Kong Observatory | Daily rainfall at HKO HQ and other stations | Daily | Decades |
-| 6 | [Rainfall in the past hour from automatic weather stations](https://data.gov.hk/en-data/dataset/hk-hko-rss-rainfall-in-the-past-hour) (`hourlyRainfall.php`) | Hong Kong Observatory | Station-level hourly rainfall | Every 15 min | **Real-time only**: not in the historical archive; optional live collection |
+| 3 | [Current Weather Report (RSS)](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report): `CurrentWeather.xml` | Hong Kong Observatory | **Past-hour rainfall range (mm) per district** | Hourly | Archived from **Jun 2021** |
+| 4 | [Rainstorm](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml) / [tropical cyclone](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml) warning databases | Hong Kong Observatory | Signal start & end times | Per event | Since 1998 / 1946 |
+| 5 | [Hong Kong public holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal) | 1823 | Holiday dates | Yearly | 2018–2027 (merged archived versions) |
+| 6 | [Daily total rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall) (`daily_HKO_RF_ALL.csv`) | Hong Kong Observatory | Daily rainfall at HKO HQ | Daily | Since 1884 |
 
-Optional extensions: [Processed road-segment speeds](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads) (`irnAvgSpeed-all.xml`, 2-min), [HKO Open Data API docs](https://www.hko.gov.hk/en/weatherAPI/doc/files/HKO_Open_Data_API_Documentation.pdf), [HKO daily data download page](https://www.hko.gov.hk/en/cis/downloadpage.htm).
+Station-level hourly rainfall (`hourlyRainfall.php`) is **not** in the historical
+archive, so rainfall is matched to roads by district. See
+[`docs/database_description.md`](docs/database_description.md) for every field,
+the sources we dropped, and why.
 
-### Downloading historical files
+### How the archive is accessed
 
-Historical versions of DATA.GOV.HK resources are served by the
+Historical versions of DATA.GOV.HK resources come from the
 [Historical Archive API](https://data.gov.hk/en/help/api-spec):
 
 ```bash
-# 1. List available versions of a file for a date range (YYYYMMDD)
+# List versions of a file for a date range: returns "timestamps" and "data-files" (monthly ZIP bundles)
 curl -G "https://app.data.gov.hk/v1/historical-archive/list-file-versions" \
   --data-urlencode "url=https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol-all.xml" \
   --data "start=20250805&end=20250805"
 
-# 2. Fetch one snapshot (time = YYYYMMDD-HHMM, must match a listed timestamp)
+# One snapshot (time = YYYYMMDD-HHMM) or a whole bundle (time = the bundle's YYYYMMDD timestamp)
 curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
   --data-urlencode "url=https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol-all.xml" \
   --data "time=20250805-0801" -o rawSpeedVol-20250805-0801.xml
-
-# Same API for hourly district rainfall
-curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
-  --data-urlencode "url=https://rss.weather.gov.hk/rss/CurrentWeather.xml" \
-  --data "time=20250805-0809" -o CurrentWeather-20250805-0809.xml
 ```
 
-Bulk downloads: `list-file-versions` also returns **monthly ZIP bundles**
-(`data-files`). The raw traffic file is about **1 GB per month** compressed
-(~30k snapshots). You can also download monthly/daily archives from the
-dataset page on DATA.GOV.HK ("Historical Data" tab).
+A monthly traffic bundle is ~1 GB, and one day's XML unzipped is ~670 MB. Our
+downloader reads only the requested day's files out of the bundle with HTTP range
+requests (~31 MB compressed). The pipeline then converts the day to Parquet
+(~11 MB) and deletes the ZIP, so XML never sits unzipped on disk.
 
-**Storage note:** 5 rainy seasons (Apr–Sep, 2021–2025) of raw detector data
-is roughly 30 GB zipped. We therefore download only rainstorm event days plus
-matched dry control days (see below), about 11 GB in total.
+## Pipeline
 
-### Download scripts
+Four steps. Every step skips work that is already done, so any step can be re-run
+after an interruption. Progress bars show days completed and files downloaded.
 
 ```bash
 pip install -r requirements.txt
 
-python -m src.download warnings     # HKO rainstorm + typhoon signal DBs -> data/raw/hko/*.csv,
-                                    #   data/interim/rainstorm_episodes.csv
-python -m src.download static       # detector locations, road segments, HKO daily rainfall
-python -m src.download select-days --years 2021-2025 --months 4-10 --min-level A \
-       --pad-hours 3 --controls 2   # -> data/interim/day_manifest.csv (event + control days)
+# 1. Reference data (seconds)
+python -m src.download warnings     # rainstorm + typhoon signals -> data/raw/hko/, data/interim/rainstorm_episodes.csv
+python -m src.download static       # detector locations, road segments, HKO daily rainfall -> data/raw/td/, data/raw/hko/
+python -m src.download holidays     # public holidays 2018-2027 -> data/raw/calendar/public_holidays.csv
 
-python -m src.download fetch weather traffic --manifest        # everything in the manifest
-python -m src.download fetch traffic --days 2025-08-05         # or specific days
-python -m src.download fetch weather --range 2025-08-01 2025-08-31
+# 2. Choose days -> data/interim/day_manifest.csv
+python -m src.download select-days --min-level R      # Red/Black events + controls: 59 days (start here)
+python -m src.download select-days                    # Amber and above: 298 days
+
+# 3. Download -> Parquet -> delete ZIP, day by day -> data/processed/{traffic_lane,rainfall_district}/
+python -m src.pipeline --manifest                     # or --days 2025-08-05 ... / --range START END
+
+# 4. Detector x 15-min table -> data/processed/traffic_15min/
+python -m src.aggregate --manifest
 ```
 
-`fetch` writes one ZIP per source and day to `data/raw/<source>/<YYYY>/<YYYYMMDD>.zip`
-and skips days that already exist, so it can be re-run safely after an interruption. It
-does not download the 1 GB monthly bundle. Instead it reads the bundle's index with
-HTTP range requests and pulls only that day's snapshots (~30 MB, ~40 s per day of
-traffic data). Sources: `traffic` (raw detectors), `weather` (district rainfall),
-`segments` (processed segment speeds, optional).
+Then in Python:
 
-With the defaults (2021–2025, April–October, any warning level, 2 control
-weeks) the manifest has 362 days: 155 event days and 207 control days.
+```python
+from datetime import date
+import pandas as pd
+from src.data import load_traffic_lane, load_rainfall_district
 
-A control day is the same weekday one or two weeks before an event day, with no
-rainstorm warning and no typhoon signal.
+lanes = load_traffic_lane([date(2025, 8, 5)])       # ~3.6 M rows: time, detector_id, lane, speed, occupancy, volume, sd, valid
+rain = load_rainfall_district([date(2025, 8, 5)])   # 24 h x 18 districts
+t15 = pd.read_parquet("data/processed/traffic_15min/2025/20250805.parquet")
+```
 
-### Data quirks found so far
+### Step details
 
-These matter for the cleaning step:
+**`select-days`** options: `--years` (default `2022-2025`; 2021 had only 42 detectors
+until November), `--months` (default `4-10`), `--min-level` `A`/`R`/`B` (lowest
+warning level that counts as an event), `--pad-hours` (default 3, before and after
+each episode), `--controls` (default 2). A control day is the same weekday one or
+two weeks before an event day, with no rainstorm warning and no typhoon signal.
 
-- **Snapshot time ≠ measurement time.** A traffic snapshot archived at 08:01 holds
-  the two 30-second periods 07:53:00–07:54:00. Always use `<period_from>` inside the XML.
-- **Gaps.** About 947 snapshots per day (≈ one every 1.5 min), each covering 1 min,
-  so roughly a third of the minutes are missing even before any sensor faults.
-- **Duplicate snapshots.** Bundles sometimes store the same file twice. `fetch` drops exact duplicates.
-- **`24:00` timestamps.** The HKO warning files write midnight as 24:00. The parser rolls it over to 00:00 the next day.
-- **Provisional records.** In the HKO warning files, rows after the `UUUU` marker are provisional (flagged in the CSVs).
+| Setting (2022–2025, Apr–Oct) | Days (event + control) | Downloaded (deleted after) | Kept on disk | Time (step 3) |
+|---|---|---|---|---|
+| `--min-level B` | 20 (9 + 11) | ~0.6 GB | ~0.2 GB | ~10 min |
+| `--min-level R` | 59 (28 + 31) | ~1.8 GB | ~0.7 GB | ~25 min |
+| `--min-level A` (default) | 298 (129 + 169) | ~9.2 GB | ~3.3 GB | ~2 h |
+
+**`pipeline`** downloads in the main process (16 threads per day, `--workers`) and
+parses in `--jobs` worker processes (default 3; each needs ~1.6 GB RAM for a
+traffic day). Downloads stay at most `--jobs` days ahead of parsing, so only a few
+ZIPs are on disk at once. Measured: ~24 s per traffic day with `--jobs 3` (download-bound),
+~34 s with `--jobs 1`. `--keep-raw` keeps the ZIPs. Per-day coverage (snapshots, rows,
+periods, detectors, re-dated periods, bulletins, max rain, errors) goes to
+`data/processed/coverage.csv`. A failed day is logged there and the run continues.
+
+**`aggregate`** writes one row per detector and 15-minute bin: reading counts
+(`n_readings`, `n_periods`, `n_invalid`, `n_zero_volume`, `n_speed_over_130`),
+`volume_sum`, `occupancy_mean`, and two speeds, so the basic cleaning rule can
+be compared directly:
+`speed_naive` (plain mean of all readings) and `speed_clean` (volume-weighted mean
+over `valid == 'Y'` and `volume > 0`). ~10 s and ~0.9 MB per day.
+
+`python -m src.download fetch <sources> --days|--range|--manifest` downloads ZIPs
+without parsing, if you want the raw XML.
+
+## Data quirks found so far
+
+These are material for the preprocessing experiments. The full list is in
+[`docs/database_description.md`](docs/database_description.md#5-known-data-issues).
+
+- **Detector network grew:** 42 detectors (Jul 2021), 554 (Dec 2021), ~680 (2023), 770 (2025).
+  807 are listed in the location table.
+- **`s.d.` only from ~18 Nov 2021.**
+- **Snapshot time ≠ measurement time:** a file archived at 08:01 holds 07:53:00–07:54:00.
+  The parser uses `<period_from>`.
+- **Midnight date quirk:** the 00:00 period carries the previous day's `<date>`. The parser
+  re-dates it using the file's archive time (`n_periods_redated` in coverage).
+- **Gaps:** snapshots per day vary by month (≈ 530–1,430). On 5 Aug 2025 only 1,730 of
+  2,880 30-second periods are present.
+- **Overlap:** adjacent snapshots repeat readings (~9 % of rows), and bundles sometimes store
+  a file twice. Both are deduplicated.
+- **Placeholder speeds:** when `volume = 0` (~28 % of readings), `speed` is the posted limit
+  (70/80/100/50/110, s.d. = 0), not a measurement.
+- **Out-of-range values:** speeds up to 300 km/h, occupancy = −1, speed 0 with volume > 0;
+  `valid = N` on ~0.5 % of readings.
+- **Names:** the detector table has both `Central & Western` and `Central and Western`, and
+  most road names have trailing spaces. HKO writes `Southern District` where TD writes `Southern`.
+- **Rainfall is a min–max range per district.** A district missing from a bulletin had no rain.
+  A bulletin without the rainfall sentence means no rain anywhere. The rainfall hour is the one
+  stated in the sentence (e.g. 06:45–07:45), not the bulletin's "At 8 a.m." time.
+- **Warning DB:** `24:00` end times; rows after `UUUU` are provisional.
 - **All times are HKT (UTC+8)** and are stored without a time zone.
 
 ### Key periods
 
-2025 had four Black Rainstorm episodes, the first time this has happened in
-one year under the current system ([arXiv:2508.07600](https://arxiv.org/pdf/2508.07600)).
+2025 had four Black Rainstorm episodes, the first time this has happened in one
+year under the current system ([arXiv:2508.07600](https://arxiv.org/pdf/2508.07600)).
 Other notable events: the [7–8 Sep 2023 record rainstorm](https://en.wikipedia.org/wiki/2023_Hong_Kong_rainstorm_and_floods)
-and the Black Rainstorm on the morning of 5 Aug 2025. We confirmed that both the
-traffic and the district-rainfall archives contain snapshots for 5 Aug 2025.
-The full event list comes from dataset #4.
-
-## Quick start
-
-```bash
-pip install -r requirements.txt
-python scripts/01_reference.py                       # detectors, warnings, holidays, daily rain
-python scripts/02_weather.py 2025-07-01 2025-08-31   # hourly district rainfall  -> data/weather/
-python scripts/03_traffic.py 2025-07-27 2025-08-16   # lane-level traffic       -> data/interim/traffic/
-python scripts/04_sample.py  2025-07-27 2025-08-16   # detector x 15-min table  -> data/sample/
-```
-
-## What is in `data/`
-
-| Path | Committed | Content |
-|------|-----------|---------|
-| `reference/detectors.csv` | yes | 807 detectors: ID, **District**, road, lat/lon, direction (as published) |
-| `reference/rainstorm_warnings.csv` | yes | Every Amber/Red/Black period since Apr 1998, start/end to the minute |
-| `reference/public_holidays.csv` | yes | 2021–2027 (2025+ from 1823.gov.hk, earlier from the `holidays` package; please verify) |
-| `reference/daily_rainfall_HKO.csv` | yes | Daily rainfall at HKO HQ, full history, raw HKO format |
-| `weather/district_rain_*.csv` | yes | Hourly past-hour rainfall range per district, parsed from CurrentWeather.xml |
-| `sample/traffic_15min_*.csv.gz` | yes | Pilot window: detector × 15 min, with both naive and cleaned speed |
-| `interim/traffic/lanes_*.parquet` | no | Lane-level 30-s readings, one file per day, every 5 min |
-
-## Data quirks found so far (preprocessing material)
-
-1. **Placeholder speeds.** When a lane has `volume = 0` (~23% of readings), `speed` is a round
-   number (70/80/100/50/110): apparently the posted limit, not a measurement.
-2. **Out-of-range values:** speeds up to 288 km/h, occupancy = −1, speed 0 with volume > 0.
-3. **`valid = N`** on ~0.6% of lane readings; their values look normal, so only the flag identifies them.
-4. **Duplicates:** the same 30-s period can appear in consecutive snapshots.
-5. **Time lag:** observations are 5–10 min older than the snapshot timestamp. Align on `obs_time`.
-6. **Midnight date bug:** right after midnight the XML `<date>` can still show the previous day
-   (`hkrt.parse.fix_midnight_date` corrects it).
-7. **Archive gaps:** some snapshots return 404; the downloader falls back to the next one in the 5-min bucket.
-8. **Name mismatches:** detector table has both `Central & Western` and `Central and Western`;
-   HKO writes `Eastern District`, `North District`, …; 97% of road names have trailing spaces.
-9. **Coverage:** 807 detectors in the table, ~770 report in any snapshot, 30 never seen in our sample.
-10. **Rainfall is a range per district** (e.g. `27 to 60 mm`), and districts without rain are simply not listed.
+and the Black Rainstorm of 4–5 Aug 2025.
 
 ## Repository layout
 
 ```
 .
 ├── README.md, PROPOSAL.md, requirements.txt
-├── src/hkrt/
-│   ├── archive.py      # DATA.GOV.HK historical-archive client
-│   └── parse.py        # XML/RSS/DAT -> tidy tables (no cleaning)
-├── scripts/            # 01_reference, 02_weather, 03_traffic, 04_sample
-├── data/
-│   ├── reference/      # committed
-│   ├── weather/        # committed
-│   ├── sample/         # committed
-│   └── interim/        # git-ignored, regenerated by scripts
+├── docs/database_description.md
+├── src/
+│   ├── download/       # step 1-2 (+ fetch): archive client, warnings, static files, holidays, day selection
+│   ├── parse/          # traffic XML and weather bulletins -> tables
+│   ├── pipeline.py     # step 3: download -> Parquet -> delete ZIP, parallel, with progress bars
+│   ├── aggregate.py    # step 4: detector x 15-min table
+│   ├── data.py         # loaders for processed tables
+│   └── config.py       # paths and source URLs
+├── tests/
+├── data/               # raw/, interim/, processed/ are git-ignored and regenerated;
+│                       #   reference/, weather/ were committed by earlier scripts (keep or drop: open)
 ├── notebooks/          # EDA and experiment reports (to come)
 └── results/            # figures, tables (to come)
 ```

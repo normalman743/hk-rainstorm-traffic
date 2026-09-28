@@ -180,12 +180,18 @@ def day_path(source: str, day: date) -> Path:
     return RAW_DIR / source / f"{day:%Y}" / f"{day:%Y%m%d}.zip"
 
 
-def download_day(source: str, day: date, workers: int = 8, overwrite: bool = False) -> Path | None:
-    """Download all snapshots of `source` archived on `day` into one local ZIP."""
+def download_day(source: str, day: date, workers: int = 16, overwrite: bool = False,
+                 log=print, progress=None) -> Path | None:
+    """Download all snapshots of `source` archived on `day` into one local ZIP.
+
+    `log` receives one-line status messages (use tqdm.write under a progress bar).
+    `progress`, if given, is a tqdm-like bar: its total is set to the number of
+    snapshots and it is advanced once per snapshot.
+    """
     resource_url = ARCHIVED_SOURCES[source]
     out = day_path(source, day)
     if out.exists() and not overwrite:
-        print(f"[skip] {out.relative_to(RAW_DIR)} exists")
+        log(f"[skip] {out.relative_to(RAW_DIR)} exists")
         return out
 
     listing = list_versions(resource_url, day, day)
@@ -218,19 +224,24 @@ def download_day(source: str, day: date, workers: int = 8, overwrite: bool = Fal
         mode = "snapshots"
 
     if not items:
-        print(f"[none] {source} {day}: no archived versions")
+        log(f"[none] {source} {day}: no archived versions")
         return None
+    if progress is not None:
+        progress.reset(total=len(items))
 
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".zip.part")
     total = 0
+    # compresslevel=1: the XML still shrinks ~15x, at a fraction of the default level's CPU time.
     with ThreadPoolExecutor(max_workers=workers) as pool, \
-            zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
         # pool.map keeps input order; results are written as they arrive in that order.
         for name, data in zip((n for n, _ in items), pool.map(lambda item: item[1](), items)):
             zf.writestr(name, data)
             total += len(data)
+            if progress is not None:
+                progress.update()
     tmp.replace(out)
-    print(f"[ok]   {source} {day}: {len(items)} snapshots via {mode}, "
-          f"{total / 1e6:.0f} MB raw -> {out.stat().st_size / 1e6:.0f} MB")
+    log(f"[ok]   {source} {day}: {len(items)} snapshots via {mode}, "
+        f"{total / 1e6:.0f} MB raw -> {out.stat().st_size / 1e6:.0f} MB")
     return out

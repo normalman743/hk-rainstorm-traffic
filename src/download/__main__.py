@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 from datetime import date, timedelta
 
+from tqdm import tqdm
+
 from src.config import ARCHIVED_SOURCES
 from src.download.archive import download_day
 from src.download.holidays import download_holidays
@@ -48,7 +50,7 @@ def main() -> None:
     when.add_argument("--days", nargs="+", type=date.fromisoformat, help="YYYY-MM-DD ...")
     when.add_argument("--range", nargs=2, type=date.fromisoformat, metavar=("START", "END"))
     when.add_argument("--manifest", action="store_true", help=f"use {MANIFEST.name}")
-    fetch.add_argument("--workers", type=int, default=8)
+    fetch.add_argument("--workers", type=int, default=16, help="download threads per day")
     fetch.add_argument("--overwrite", action="store_true")
 
     args = parser.parse_args()
@@ -69,9 +71,14 @@ def main() -> None:
         print(f"{len(rows)} days ({n_event} event, {len(rows) - n_event} control) -> {MANIFEST}")
     elif args.command == "fetch":
         days = (args.days or (_date_range(*args.range) if args.range else read_manifest()))
-        for source in args.sources:
-            for day in days:
-                download_day(source, day, workers=args.workers, overwrite=args.overwrite)
+        tasks = [(source, day) for source in args.sources for day in days]
+        with tqdm(total=len(tasks), desc="days", unit="day", position=0) as days_bar, \
+                tqdm(desc="download", unit="file", position=1, leave=False) as dl_bar:
+            for source, day in tasks:
+                dl_bar.set_description(f"download {source} {day}")
+                download_day(source, day, workers=args.workers, overwrite=args.overwrite,
+                             log=tqdm.write, progress=dl_bar)
+                days_bar.update()
 
 
 if __name__ == "__main__":
