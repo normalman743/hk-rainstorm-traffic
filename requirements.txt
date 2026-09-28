@@ -1,2 +1,6 @@
+pandas>=2.0
+numpy
+pyarrow
+holidays
 requests>=2.31
 pytest>=8
