@@ -1,12 +1,13 @@
 """Download from the DATA.GOV.HK Historical Archive, driven by a plan file.
 
 A plan says only what to request. Each entry converts directly into get-file
-requests -- coverage is not consulted to decide anything -- and whatever the
-archive answers (a file, 404, ...) is what you get. Write plans by looking at
-`python -m hkdata.discover coverage URL --brief`, with `add` below or by hand.
+(and get-data-dictionary / get-schema) requests -- coverage is not consulted to
+decide anything -- and whatever the archive answers (a file, 404, ...) is what
+you get. Write plans by looking at `python -m hkdata.discover coverage URL
+--brief`, with `add` below or by hand.
 
 Plan file: a JSON list of entries, each one resource URL plus either `dates`
-or `range`:
+or `range`, and optionally `dictionary` / `schema`:
 
     {"url": URL, "dates": [ITEM, ...]}
         "YYYY-MM"     get-file time=YYYYMM01: the whole bundle
@@ -19,6 +20,30 @@ or `range`:
         every month from the first to the last (inclusive) except `exclude`
         (optional), each as "YYYY-MM" above. Months only: to leave out single
         days, delete them after downloading.
+    "dictionary": ["YYYYMMDD", ...]   get-data-dictionary date=YYYYMMDD, as written
+    "schema": ["YYYYMMDD", ...]       get-schema date=YYYYMMDD, as written
+        The archive's own copies of the resource's data dictionary (PDF) and
+        schema (e.g. XSD). `add` always fills both in from coverage's
+        `data-dictionary-dates` / `schema-dates` for the entry's dates (a range
+        as one span, `dates` item by item), unchanged -- [] if coverage has none.
+
+How get-data-dictionary / get-schema answered `date` (tested 2026-09):
+    a date in data-dictionary-dates  -> 302 to that version
+    a later date (20240501)          -> 302 to the latest version on or before it
+    before the first version         -> 404 {"message": "Not Found"}
+    2025-09-23                       -> 400 {"message": "REQUEST ERROR: Invalid date parameter"}
+    `url` is the resource URL; the dataset page URL gave 404. The file name
+    carries the dictionary's own date, which can differ from the requested one
+    (date=20221214 -> 20211118-dataspec-traffic-data-strategic-major-roads.pdf).
+    data-dictionary-dates for 2024-01..2025-12 included the version already in
+    force on 2024-01-01 (rawSpeedVol-all.xml: 20221214).
+    Broken in the archive (2026-09): two listed versions redirect to a file the
+    storage host doesn't have (404 NoSuchKey), so they were deleted by hand from
+    hkdata/plans/2024_2025_*.json after `add`:
+        20221214 (TD strategic / major roads dataspec, every resource sharing
+                 it) -> .../data-dictionary/2022/12/20211118-dataspec-...pdf
+        20240229 (CurrentWeather.xml) -> .../data-dictionary/2024/02/
+                 HKO_Open_Data_API_Documentation-20240229.pdf
 
 How get-file answered `time` (tested 2026-09 on CurrentWeather.xml):
     20250701 (1st of a past month)   -> 302 to that month's bundle (period M)
@@ -34,7 +59,12 @@ Output, under OUT/<url host>/<url path>/:
     day/<YYYYMMDD>.zip    that day's members of the month bundle: original names,
                           timestamps and contents, re-zipped (deflate level 1);
                           every member kept, duplicates included
-An existing output file is skipped unless --overwrite.
+    data-dictionary/<date>/<name>, schema/<date>/<name>
+                          the file as downloaded; <date> as requested, <name>
+                          from the storage URL get-data-dictionary / get-schema
+                          redirected to
+An existing output file (dictionary / schema: its <date> directory) is skipped
+unless --overwrite. Resources sharing a dictionary each get their own copy.
 
 Errors: a request answered 429/5xx (or a dropped connection) is retried up to 3
 times, each retry printed. A task that still fails -- an archive error (with its
@@ -59,6 +89,8 @@ Sizes, printed by `show` and by `run` before it starts, come from coverage:
     YYYY-MM-DD    `total-size` of that day: the raw (uncompressed) snapshots;
                   the Range transfer is compressed, so smaller. An entry with
                   more than 20 such days samples 5 at random and scales up.
+    dictionary /  not in coverage; shown as unknown, downloaded one at a time
+    schema
 
 CLI (every example below has been run):
 
@@ -78,6 +110,7 @@ import json
 import math
 import random
 import re
+import shutil
 import struct
 import sys
 import threading
@@ -85,7 +118,7 @@ import traceback
 import zipfile
 import zlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
@@ -160,30 +193,43 @@ def _warn_unfinished(month: date, item: str) -> None:
 
 def _month_task(url: str, month: date, item: str) -> dict:
     _warn_unfinished(month, item)
-    return {"url": url, "item": item, "time": f"{month:%Y%m%d}", "day": None}
+    return {"url": url, "item": item, "time": f"{month:%Y%m%d}", "day": None, "doc": None}
 
 
 def _item_task(url: str, item: str) -> dict:
     if _MONTH.fullmatch(item):
         return _month_task(url, _month(item, "dates"), item)
     if _TIMESTAMP.fullmatch(item):
-        return {"url": url, "item": item, "time": item, "day": None}
+        return {"url": url, "item": item, "time": item, "day": None, "doc": None}
     if _DAY.fullmatch(item):
         d = date.fromisoformat(item)
         _warn_unfinished(d.replace(day=1), item)
-        return {"url": url, "item": item, "time": f"{d:%Y%m}01", "day": f"{d:%Y%m%d}"}
+        return {"url": url, "item": item, "time": f"{d:%Y%m}01", "day": f"{d:%Y%m%d}", "doc": None}
     raise ValueError(f"dates: expected YYYY-MM, YYYY-MM-DD or YYYYMMDD, got {item!r}")
+
+
+def _doc_tasks(entry: dict) -> list[dict]:
+    """The entry's `dictionary` / `schema` dates, each sent as written."""
+    return [{"url": entry["url"], "item": f"{doc} {d}", "time": d, "day": None, "doc": doc}
+            for key, doc in (("dictionary", "data-dictionary"), ("schema", "schema"))
+            for d in entry.get(key, [])]
 
 
 def tasks(entry: dict) -> list[dict]:
     """The requests one plan entry converts to, in plan order: dicts with `url`,
-    `item` (what the plan wrote), `time` (get-file's time) and `day` (YYYYMMDD
-    to take from the bundle, or None for the whole bundle). Raises ValueError
-    for anything that can't be converted; prints warnings to stderr."""
+    `item` (what the plan wrote), `time` (get-file's time, or get-data-dictionary /
+    get-schema's date), `day` (YYYYMMDD to take from the bundle, or None for the
+    whole bundle) and `doc` (None for get-file, else "data-dictionary" / "schema").
+    The entry's dates / range come first, then its dictionary and schema. Raises
+    ValueError for anything that can't be converted; prints warnings to stderr."""
     keys = set(entry)
-    if "url" not in keys or keys - {"url"} not in ({"dates"}, {"range"}, {"range", "exclude"}):
+    if "url" not in keys or keys - {"url", "dictionary", "schema"} not in ({"dates"}, {"range"}, {"range", "exclude"}):
         raise ValueError(f"plan entry needs 'url' and either 'dates' or 'range' (+ optional 'exclude'), "
-                         f"got keys {sorted(keys)}")
+                         f"+ optional 'dictionary' / 'schema', got keys {sorted(keys)}")
+    return _file_tasks(entry) + _doc_tasks(entry)
+
+
+def _file_tasks(entry: dict) -> list[dict]:
     url = entry["url"]
     if "dates" in entry:
         return [_item_task(url, item) for item in entry["dates"]]
@@ -208,14 +254,54 @@ def load(path: Path) -> list[dict]:
     return json.loads(Path(path).read_text())
 
 
-def add(path: Path, entry: dict) -> list[dict]:
+def _month_end(month: date) -> date:
+    return date(month.year + month.month // 12, month.month % 12 + 1, 1) - timedelta(days=1)
+
+
+def _spans(entry: dict) -> list[tuple[date, date]]:
+    """The date spans an entry's dates / range cover: a range as one span (excluded
+    months included), `dates` one span per item."""
+    if "range" in entry:
+        first, last = (_month(m, "range (months only)") for m in entry["range"])
+        return [(first, _month_end(last))]
+    spans = []
+    for item in entry["dates"]:
+        if _MONTH.fullmatch(item):
+            m = _month(item, "dates")
+            spans.append((m, _month_end(m)))
+        elif _DAY.fullmatch(item):
+            spans.append((date.fromisoformat(item),) * 2)
+        else:  # YYYYMMDD; one that isn't a date raises here, since coverage needs a date
+            spans.append((datetime.strptime(item, "%Y%m%d").date(),) * 2)
+    return spans
+
+
+def _doc_dates(entry: dict) -> dict[str, list[str]]:
+    """{"dictionary": [...], "schema": [...]}: coverage's data-dictionary-dates /
+    schema-dates over the entry's spans, as returned (their union, sorted, if
+    more than one span). One coverage request per span."""
+    found = {"dictionary": set(), "schema": set()}
+    for start, end in _spans(entry):
+        r = coverage(entry["url"], start, end)
+        found["dictionary"].update(r["data-dictionary-dates"])
+        found["schema"].update(r["schema-dates"])
+    return {k: sorted(v) for k, v in found.items()}
+
+
+def add(path: Path, entry: dict) -> tuple[dict, list[dict]]:
     """Append `entry` to the plan file (created if missing), after checking it
-    converts; returns its tasks."""
-    entry_tasks = tasks(entry)
+    converts. Fills in the entry's `dictionary` and `schema` from coverage (see
+    _doc_dates), so it must not already have them. Returns (the entry as written,
+    its tasks)."""
+    if {"dictionary", "schema"} & set(entry):
+        raise ValueError(f"add fills in 'dictionary' / 'schema' from coverage; entry already has "
+                         f"{sorted({'dictionary', 'schema'} & set(entry))} (write such an entry into the plan by hand)")
+    file_tasks = tasks(entry)  # checks it converts before asking coverage
+    entry = {**entry, **_doc_dates(entry)}
     plan = load(path) if Path(path).exists() else []
     plan.append(entry)
     Path(path).write_text(json.dumps(plan, indent=2, ensure_ascii=False) + "\n")
-    return entry_tasks
+    return entry, file_tasks + _doc_tasks(entry)
 
 
 # --- Sizes -----------------------------------------------------------------------
@@ -257,19 +343,19 @@ def show(plan: list[dict], plan_tasks: list[list[dict]], out: Path | None = None
             for t in ts:
                 path = output_path(out, t)
                 if path.exists():
-                    local[id(t)] = path.stat().st_size
+                    local[id(t)] = _local_size(path)
     sampled = []  # per entry: the "YYYY-MM-DD" tasks (not yet downloaded) whose size is looked up
     for entry_tasks in plan_tasks:
         days = [t for t in entry_tasks if t["day"] is not None and id(t) not in local]
         sampled.append(random.sample(days, SAMPLE_SIZE) if len(days) > SAMPLE_ABOVE else days)
-    queries = ([t for ts in plan_tasks for t in ts if t["day"] is None and id(t) not in local]
+    queries = ([t for ts in plan_tasks for t in ts if _is_bundle(t) and id(t) not in local]
                + [t for ts in sampled for t in ts])
     with ThreadPoolExecutor(max_workers=COVERAGE_WORKERS) as pool:
         answers = list(tqdm(pool.map(lambda t: _bundle_size(t) if t["day"] is None else _day_raw_size(t), queries),
                             total=len(queries), unit="query", desc="coverage", leave=False))
     answer = {id(t): a for t, a in zip(queries, answers)}
 
-    bundle_total, bundle_unknown, day_total, day_estimated = 0, 0, 0, False
+    bundle_total, bundle_unknown, day_total, day_estimated, docs = 0, 0, 0, False, 0
     for i, (entry, entry_tasks, entry_sampled) in enumerate(zip(plan, plan_tasks, sampled), 1):
         print(f"== entry {i}/{len(plan)}: {entry['url']} ({len(entry_tasks)} request(s))")
         days = [t for t in entry_tasks if t["day"] is not None and id(t) not in local]
@@ -277,13 +363,17 @@ def show(plan: list[dict], plan_tasks: list[list[dict]], out: Path | None = None
         for t in entry_tasks:
             if id(t) in local:
                 note = f"exists, {_mb(local[id(t)])} local"
+            elif t["doc"] is not None:
+                note = "size not in coverage"
+                docs += 1
             elif t["day"] is None:
                 size, note = answer[id(t)]
                 bundle_total += size or 0
                 bundle_unknown += size is None
             else:
                 note = (f"{_mb(sizes[id(t)])} raw (uncompressed)" if id(t) in sizes else "not sampled")
-            print(f"  {t['item']:<10} time={t['time']}" + (f" day={t['day']}" if t["day"] else "") + f" | {note}")
+            print(f"  {t['item']:<10} " + (f"date={t['time']}" if t["doc"] else f"time={t['time']}")
+                  + (f" day={t['day']}" if t["day"] else "") + f" | {note}")
         if days:
             per_day = sum(sizes.values()) / len(sizes)
             day_total += per_day * len(days)
@@ -296,18 +386,19 @@ def show(plan: list[dict], plan_tasks: list[list[dict]], out: Path | None = None
     print(f"total bundles: {_mb(bundle_total)} zip" + (f" (+{bundle_unknown} of unknown size)" if bundle_unknown else ""))
     print(f"total days via Range: {'~' if day_estimated else ''}{_mb(day_total)} raw (uncompressed); "
           f"the transfer is compressed, so smaller")
-    return {id(t): answer[id(t)][0] for ts in plan_tasks for t in ts if t["day"] is None and id(t) not in local}
+    print(f"data dictionaries / schemas: {docs} file(s), size not in coverage")
+    return {id(t): answer[id(t)][0] for ts in plan_tasks for t in ts if _is_bundle(t) and id(t) not in local}
 
 
 # --- Remote ZIP via HTTP Range ---------------------------------------------------
 
-def _resolve(url: str, time: str) -> str:
-    """The storage URL get-file redirects to."""
-    resp = _session().get(f"{ARCHIVE_API}/get-file", params={"url": url, "time": time},
-                          allow_redirects=False, timeout=TIMEOUT)
+def _resolve(endpoint: str, params: dict) -> str:
+    """The storage URL an archive endpoint (get-file, get-data-dictionary, get-schema)
+    redirects to."""
+    resp = _session().get(f"{ARCHIVE_API}/{endpoint}", params=params, allow_redirects=False, timeout=TIMEOUT)
     _check(resp)
     if resp.status_code != 302:
-        raise requests.HTTPError(f"get-file time={time} for {url}: expected 302, got {resp.status_code}\n"
+        raise requests.HTTPError(f"{endpoint} {params}: expected 302, got {resp.status_code}\n"
                                  f"response body:\n{resp.text}", response=resp)
     return resp.headers["Location"]
 
@@ -386,10 +477,24 @@ def _read_member(bundle_url: str, info: zipfile.ZipInfo) -> bytes:
 
 # --- Download --------------------------------------------------------------------
 
+def _is_bundle(task: dict) -> bool:
+    """A whole get-file bundle (not a "YYYY-MM-DD" day, not a dictionary / schema)."""
+    return task["day"] is None and task["doc"] is None
+
+
 def output_path(out: Path, task: dict) -> Path:
+    """The output file; for a dictionary / schema, the <date> directory holding it
+    (the file's name is only known from the redirect)."""
     u = urlparse(task["url"])
     base = Path(out) / u.netloc / u.path.lstrip("/")
+    if task["doc"]:
+        return base / task["doc"] / task["time"]
     return base / "day" / f"{task['day']}.zip" if task["day"] else base / "bundle" / f"{task['time']}.zip"
+
+
+def _local_size(path: Path) -> int:
+    """An output's size on disk: the file, or the files in a dictionary / schema directory."""
+    return sum(f.stat().st_size for f in path.iterdir()) if path.is_dir() else path.stat().st_size
 
 
 def _download_bundle(task: dict, tmp: Path, progress: bool = True, on_bytes=None) -> str:
@@ -412,7 +517,7 @@ def _download_bundle(task: dict, tmp: Path, progress: bool = True, on_bytes=None
 
 def _download_day(task: dict, tmp: Path, workers: int | None) -> str:
     """`workers` None: max(1, min(ceil(files / 10), MAX_WORKERS))."""
-    bundle_url = _resolve(task["url"], task["time"])
+    bundle_url = _resolve("get-file", {"url": task["url"], "time": task["time"]})
     prefix = f"{task['day']}-"
     members = [i for i in _members(bundle_url) if Path(i.filename).name.startswith(prefix)]
     if not members:
@@ -435,6 +540,25 @@ def _download_day(task: dict, tmp: Path, workers: int | None) -> str:
     return f"{len(members)} files from bundle time={task['time']} ({workers} workers), {_mb(tmp.stat().st_size)}"
 
 
+def _download_doc(task: dict, tmp: Path) -> str:
+    """A dictionary / schema into directory `tmp`, under the name in the storage
+    URL it redirects to."""
+    location = _resolve(f"get-{task['doc']}", {"url": task["url"], "date": task["time"]})
+    target = tmp / Path(urlparse(location).path).name
+    resp = _check(_session().get(location, timeout=TIMEOUT))
+    target.write_bytes(resp.content)
+    if "Content-Length" in resp.headers and target.stat().st_size != int(resp.headers["Content-Length"]):
+        raise OSError(f"got {target.stat().st_size} bytes, Content-Length said {resp.headers['Content-Length']}")
+    return f"{target.name} {_mb(target.stat().st_size)}"
+
+
+def _remove(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
+
+
 def _run_one(t: dict, out: Path, workers: int | None, overwrite: bool, progress: bool, on_bytes=None) -> tuple:
     """Download one task. Returns ("skip", path, None) | ("ok", path, what was done)
     | ("error", full message, short message); never raises for the task's own failures.
@@ -445,12 +569,21 @@ def _run_one(t: dict, out: Path, workers: int | None, overwrite: bool, progress:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".part")
     try:
-        done = _download_bundle(t, tmp, progress, on_bytes) if t["day"] is None else _download_day(t, tmp, workers)
+        if t["doc"]:
+            _remove(tmp)  # a directory left by an interrupted run
+            tmp.mkdir()
+            done = _download_doc(t, tmp)
+        elif t["day"]:
+            done = _download_day(t, tmp, workers)
+        else:
+            done = _download_bundle(t, tmp, progress, on_bytes)
     except Exception as exc:  # noqa: BLE001 -- one failed task must not stop the rest; reported by run()
         # the archive's own errors carry its response; anything else keeps its traceback
         msg = str(exc) if isinstance(exc, (requests.RequestException, LookupError)) else traceback.format_exc()
-        tmp.unlink(missing_ok=True)
+        _remove(tmp)
         return "error", msg, f"{type(exc).__name__}: {(str(exc).strip().splitlines() or [''])[0]}"
+    if t["doc"] and path.exists():  # --overwrite: a directory can't be replaced in one step
+        shutil.rmtree(path)
     tmp.replace(path)
     return "ok", path, done
 
@@ -471,8 +604,9 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
     `sizes` ({id(task): bytes}, from show()) sets how many whole bundles download
     at once, by BUNDLE_PARALLEL: < 10 MB 32, < 100 MB 4, else one at a time. Those
     go first, smallest group first, then the one-at-a-time rest in plan order:
-    bundles >= 100 MB or of unknown size, and "YYYY-MM-DD" days (which already
-    run their own parallel Range requests). Without `sizes`, all one at a time.
+    bundles >= 100 MB or of unknown size, "YYYY-MM-DD" days (which already run
+    their own parallel Range requests) and dictionaries / schemas (no size in
+    coverage). Without `sizes`, all one at a time.
 
     Progress: the top bar counts bytes against the sizes from `sizes` (ETA from
     the recent speed), with tasks finished / failed; below it, a one-at-a-time
@@ -480,7 +614,7 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
     numbered = list(enumerate(all_tasks, 1))
     groups: dict[int, list] = {}
     for i, t in numbered:
-        n = _parallel(sizes.get(id(t))) if sizes is not None and t["day"] is None else 1
+        n = _parallel(sizes.get(id(t))) if sizes is not None and _is_bundle(t) else 1
         groups.setdefault(n, []).append((i, t))
 
     # The top bar counts bytes: its total is the known sizes of the bundles to download,
@@ -488,7 +622,7 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
     # Tasks of unknown size ("YYYY-MM-DD" days, bundles coverage had no size for) join the
     # total only once finished, with their file size, so they don't distort the ETA.
     known = {id(t): sizes[id(t)] for t in all_tasks
-             if sizes is not None and t["day"] is None and sizes.get(id(t)) is not None}
+             if sizes is not None and _is_bundle(t) and sizes.get(id(t)) is not None}
     lock = threading.Lock()
     overall = tqdm(total=sum(known.values()), unit="B", unit_scale=True, desc="total", position=0)
     errors, finished = [], 0
@@ -524,7 +658,7 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
             else:
                 tqdm.write(f"{head} | {b} -> {a}")
                 if id(t) not in known:
-                    size = a.stat().st_size
+                    size = _local_size(a)
                     overall.total += size
                     overall.update(size)
             finished += 1
@@ -543,7 +677,8 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
     overall.close()
     print(f"{len(all_tasks)} request(s), {len(errors)} failed")
     for t, short in errors:
-        print(f"failed: {t['url']} {t['item']} (time={t['time']}" + (f" day={t['day']}" if t["day"] else "")
+        print(f"failed: {t['url']} {t['item']} ({'date' if t['doc'] else 'time'}={t['time']}"
+              + (f" day={t['day']}" if t["day"] else "")
               + f") | {short} (full error above)")
     return errors
 
@@ -553,7 +688,8 @@ def main() -> None:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    a = sub.add_parser("add", help="append one entry to a plan file (created if missing)")
+    a = sub.add_parser("add", help="append one entry to a plan file (created if missing), "
+                                   "with its dictionary / schema dates from coverage")
     a.add_argument("plan", type=Path)
     a.add_argument("url", help="a resource's file URL, as in coverage")
     what = a.add_mutually_exclusive_group(required=True)
@@ -587,7 +723,7 @@ def main() -> None:
             entry["range"] = args.range
             if args.exclude:
                 entry["exclude"] = args.exclude
-        entry_tasks = add(args.plan, entry)
+        entry, entry_tasks = add(args.plan, entry)
         print(f"added to {args.plan}: {json.dumps(entry, ensure_ascii=False)} ({len(entry_tasks)} request(s))")
     elif args.command == "show":
         plan = load(args.plan)
