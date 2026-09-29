@@ -37,5 +37,16 @@
       "20241011"
     ],
     "schema": []
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-slp/info/traffic_speed_volume_occ_info-slp.csv",
+    "dates": [
+      "2023-12",
+      "2024-01"
+    ],
+    "dictionary": [
+      "20231228"
+    ],
+    "schema": []
   }
 ]
