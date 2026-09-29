@@ -11,7 +11,8 @@ months, every zip member becomes one row of
 
 - `index` is the member's position in the zip (a name can occur twice, e.g. 20250805-2056).
 - `fetch_time` is YYYYMMDD-HHMM from the member name: when the archive fetched the file.
-- `group` = the first member (bundle/member) with the same bytes; `n_copies` = group size.
+- `group` = `bundle:index` of the first member with the same bytes (not the name, which
+  can repeat); `n_copies` = group size.
   One file per group is enough to parse; the other rows keep every fetch time (lossless).
 
 Identity is decided in two steps, both exact:
@@ -142,7 +143,7 @@ def build(months: list[str], workers: int, only: list[str] | None = None) -> Non
         first: dict[tuple, str] = {}
         for r in rs:  # rows are in bundle order, then zip order: the first copy names the group
             key = (r["size"], r["crc32"], digests.get((r["_path"], r["index"])))
-            r["group"] = first.setdefault(key, f"{r['bundle']}/{r['member']}")
+            r["group"] = first.setdefault(key, f"{r['bundle']}:{r['index']}")
         n = defaultdict(int)
         for r in rs:
             n[r["group"]] += 1
@@ -163,7 +164,7 @@ def build(months: list[str], workers: int, only: list[str] | None = None) -> Non
                 "extra_copies": len(br) - len({r["group"] for r in br}),
                 "groups_with_copies": len({r["group"] for r in br if n[r["group"]] > 1}),
                 "repeated_names": sum(c - 1 for c in names.values() if c > 1),
-                "copies_of_other_bundle": sum(1 for r in br if not r["group"].startswith(b + "/")),
+                "copies_of_other_bundle": sum(1 for r in br if not r["group"].startswith(b + ":")),
                 "uncompressed_gb": round(sum(r["size"] for r in br) / 1e9, 3),
             })
     with (OUT_DIR / "summary.csv").open("w", newline="") as f:
