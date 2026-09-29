@@ -38,7 +38,7 @@ def _load(source: str, days: Iterable[date], time_col: str, key: list[str], colu
     frames = []
     for p in paths:
         f = pd.read_parquet(p, columns=columns)
-        frames.append(f[f[time_col].dt.normalize().isin(wanted)])
+        frames.append(f[f[time_col].dt.normalize().isin(wanted)].copy())
     df = _concat(frames)
     if df.empty:
         return df

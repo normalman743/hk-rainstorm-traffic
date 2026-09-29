@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 
 import pandas as pd
+from tqdm import tqdm
 
 from src import aggregate
 from src.config import PROCESSED_DIR, RAW_DIR
@@ -297,8 +298,9 @@ def run(days: list[date], tables: list[str] | None = None) -> int:
             truncated = {r["date"]: r.get("n_truncated_files") for r in csv.DictReader(f) if r["source"] == "traffic"}
 
     samples: dict[str, pd.DataFrame] = {}
-    for day in days:
+    for day in tqdm(days, desc="validate", unit="day"):
         d = day.isoformat()
+        n_before = len(c)
         if "traffic_lane" in tables and _staleness(c, "traffic_lane", day):
             check_traffic_file(c, day, pd.read_parquet(table_path("traffic", day), columns=["time", "detector_id", "lane"]))
             lanes = load_traffic_lane([day])
@@ -316,6 +318,9 @@ def run(days: list[date], tables: list[str] | None = None) -> int:
             t15 = pd.read_parquet(aggregate.out_path(day))
             check_15min_day(c, day, t15)
             samples["traffic_15min"] = pd.concat([samples.get("traffic_15min"), t15])
+        for x in c[n_before:]:
+            if x.level in ("FAIL", "WARN"):
+                tqdm.write(f"  [{x.level}] {x.table} {x.day} {x.name}: {x.value} {x.detail}")
 
     _write(c, days, tables, samples)
     counts = pd.Series([x.level for x in c]).value_counts().to_dict()
