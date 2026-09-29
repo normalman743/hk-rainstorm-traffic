@@ -41,7 +41,7 @@ fields and quirks: [`docs/raw_data.md`](docs/raw_data.md).
 | S6 | [Public holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal) | 1823 | per day | 2018 .. 2027 | main |
 | S8 | [Daily total rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall) at HKO HQ | HKO | daily | since 1884 | main |
 | S9, S10 | [Smart-lamppost detectors](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts): readings, locations | TD | 30 s × lane × detector (17) | 2024-01 .. 2025-12 | optional |
-| S11, N1 | Segment speeds (TD processed), segment → route | TD | ~1 min × segment (~4,400) | 2024-01 .. 2025-12 | optional |
+| S11, S14 | Segment speeds (TD processed), segment → route | TD | ~1 min × segment (~4,400) | 2024-01 .. 2025-12 | optional |
 | S12 | [Road network (2nd gen.)](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2) geometry | TD | per version (34) | 2024-01 .. 2025-12 | optional |
 | S13 | [Special traffic news](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2) (incidents, closures) | TD | per message update | 2024-01 .. 2025-12 | optional |
 | S7 | [Gridded rainfall nowcast](https://data.gov.hk/en-data/dataset/hk-hko-rss-gridded-rainfall-nowcast-in-hong-kong) (radar **forecast**) | HKO | 15 min × ~2 km grid | 2024-01 .. 2025-12 | optional |
@@ -62,7 +62,7 @@ python -m hkdata.download run hkdata/plans/road_network_2024_2025.json --out dat
 # Sources not in the archive, or versions the plans leave out (seconds)
 python -m src.download warnings         # S4, S5
 python -m src.download static           # S8, S2 live copy
-python -m src.download static-history   # S2, N1 older versions
+python -m src.download static-history   # S2, S14 older versions
 python -m src.download holidays         # S6
 ```
 

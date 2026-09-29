@@ -28,7 +28,7 @@ a table from it (§3). The processing pipeline is being rewritten; no source has
 | S9 | [Smart-lamppost traffic detectors](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts), `rawSpeedVol_SLP-all.xml` (TD) | Historical Archive (`hkdata.download`) | 30 s periods | 2024-01 .. 2025-12 | Extra detectors (same format as S1) | Optional; downloaded |
 | S10 | Smart-lamppost detector locations, CSV (TD) | Historical Archive (`hkdata.download`) | Versions | 2023-12, 2024-01 | Attributes of S9 detectors | Optional; downloaded |
 | S11 | Traffic Speeds of Road Network Segments (Processed Data), `irnAvgSpeed-all.xml` (TD) | Historical Archive (`hkdata.download`) | ~1 min | 2024-01 .. 2025-12 | TD's own segment speeds, cross-check | Optional; downloaded |
-| N1 | [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv), `speed_segments_info.csv` (TD) | Historical Archive (`hkdata.download`, `src.download static-history`) | Versions | 6 versions, 2021-08 .. 2023-09 | Segment → route number for S11 | Optional; downloaded |
+| S14 | [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv), `speed_segments_info.csv` (TD) | Historical Archive (`hkdata.download`, `src.download static-history`) | Versions | 6 versions, 2021-08 .. 2023-09 | Segment → route number for S11 | Optional; downloaded |
 | S12 | [Road Network (2nd Generation)](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2), `RdNet_IRNP.gdb.zip` (TD) | Historical Archive (`hkdata.download`) | Versions | 2024-01 .. 2025-12 (34 versions) | Geometry of S11 segments (`ROUTE_ID`) | Optional; downloaded |
 | S13 | [Special Traffic News (2nd Generation)](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2), `trafficnews.xml` (TD) | Historical Archive (`hkdata.download`) | Per message update | 2024-01 .. 2025-12 | Flag incidents / closures as confounders | Optional; downloaded |
 | S7 | [Gridded Rainfall Nowcast](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv), CSV (HKO) | Historical Archive (`hkdata.download`) | ~every 15 min | 2024-01 .. 2025-12 (archive from ~Jul 2022) | Local (~2 km) rainfall proxy | Optional; downloaded |
@@ -48,7 +48,7 @@ a table from it (§3). The processing pipeline is being rewritten; no source has
 
 Every raw source (format, access, structure, each field with its official description,
 observed values and quirks) is documented in **[`raw_data.md`](raw_data.md)**, using the
-same IDs S1–S13 and N1, together with where each source's data dictionary is. How each source is turned into the tables below is described in
+same IDs S1–S14, together with where each source's data dictionary is. How each source is turned into the tables below is described in
 **[`processing.md`](processing.md)**.
 
 ---

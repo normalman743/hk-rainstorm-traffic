@@ -39,7 +39,7 @@
 | S6 | [公众假期](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal) | 1823 | 每天 | 2018 至 2027 | 主要 |
 | S8 | 天文台总部[逐日总雨量](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall) | 天文台 | 每天 | 1884 年至今 | 主要 |
 | S9、S10 | [智能灯柱探测器](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts)：读数、位置 | 运输署 | 30 秒 × 车道 × 探测器（17 个） | 2024-01 至 2025-12 | 可选 |
-| S11、N1 | 路段车速（运输署处理后）、路段 → 路线 | 运输署 | 约 1 分钟 × 路段（约 4,400 个） | 2024-01 至 2025-12 | 可选 |
+| S11、S14 | 路段车速（运输署处理后）、路段 → 路线 | 运输署 | 约 1 分钟 × 路段（约 4,400 个） | 2024-01 至 2025-12 | 可选 |
 | S12 | [第二代路网](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2)几何 | 运输署 | 每个版本（34 个） | 2024-01 至 2025-12 | 可选 |
 | S13 | [特别交通消息](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2)（事故、封路） | 运输署 | 每条消息的每次更新 | 2024-01 至 2025-12 | 可选 |
 | S7 | [格点雨量临近预报](https://data.gov.hk/en-data/dataset/hk-hko-rss-gridded-rainfall-nowcast-in-hong-kong)（雷达**预报**） | 天文台 | 15 分钟 × 约 2 公里网格 | 2024-01 至 2025-12 | 可选 |
@@ -59,7 +59,7 @@ python -m hkdata.download run hkdata/plans/road_network_2024_2025.json --out dat
 # 历史存档里没有的来源，或 plan 没有包含的版本（几秒钟）
 python -m src.download warnings         # S4、S5
 python -m src.download static           # S8、S2 实时副本
-python -m src.download static-history   # S2、N1 的旧版本
+python -m src.download static-history   # S2、S14 的旧版本
 python -m src.download holidays         # S6
 ```
 

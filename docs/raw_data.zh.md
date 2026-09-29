@@ -26,10 +26,12 @@
 | S9 | 智能灯柱探测器读数 | 运输署 | 30 秒时段 | 车道 × 探测器（17 个有数据） | 2024-01 至 2025-12，月度打包 | 0.9 GB | 可选 |
 | S10 | 智能灯柱探测器位置 | 运输署 | 按版本 | 探测器 | 2023-12、2024-01 | 8 kB | 可选 |
 | S11 | 路段车速（运输署处理后） | 运输署 | 约 1 分钟一份 | 路段（约 4,400 个） | 2024-01 至 2025-12，月度打包 | 13 GB | 可选 |
-| N1 | 路段 → 路线编号 | 运输署 | 按版本 | 路段 | 2021-08 至 2023-09，6 个版本 | 0.2 MB | 可选 |
+| S14 | 路段 → 路线编号 | 运输署 | 按版本 | 路段 | 2021-08 至 2023-09，6 个版本 | 0.2 MB | 可选 |
 | S12 | 路网几何（FGDB） | 运输署 | 按版本（2024–25 年共 34 个） | 道路中心线（35,837 条） | 2024-01 至 2025-12，月度打包 | 0.6 GB | 可选 |
 | S13 | 特别交通消息（事故、封路） | 运输署 | 每条消息的每次更新 | 位置文字；部分有区和经纬度 | 2024-01 至 2025-12，月度打包 | 61 MB | 可选 |
 | S7 | 格点雨量临近预报（雷达**预报**） | 天文台 | 每 15 分钟，预报 +30 至 +120 分钟 | 约 2 公里网格，121 × 121 | 2024-01 至 2025-12，月度打包 | 12 GB | 可选 |
+
+编号：**S** = 使用的来源；**N** = 拿不到或不使用的来源。（S14 在 2026-09-29 之前叫 N1，因为 S11 要用它而改名。）
 
 拿不到历史数据的：N2 自动气象站逐小时雨量，以及天文台 JSON 版的现时天气报告（`weather.php?dataType=rhrread`），两者都不在历史存档中。
 
@@ -37,12 +39,12 @@
 
 按数据来源分两个下载工具：
 
-**`hkdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S7、S9–S13、N1（1 个版本）。
+**`hkdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S7、S9–S14（S14：1 个版本）。
 按 `hkdata/plans/` 里的 plan 下载；目录结构为 `data/raw/<网址主机>/<网址路径>/`：
 
 | Plan | 内容 | 大小 |
 |------|------|------|
-| `2024_2025_main.json` | S1、S3、S13、S2（2022-03、2024-02、2025-10）、N1（2023-09） | 25.2 GB |
+| `2024_2025_main.json` | S1、S3、S13、S2（2022-03、2024-02、2025-10）、S14（2023-09） | 25.2 GB |
 | `2024_2025_optional.json` | S11、S9、S7、S10 | 28.1 GB |
 | `road_network_2024_2025.json` | S12 | 0.6 GB |
 
@@ -66,7 +68,7 @@ python -m hkdata.download run hkdata/plans/2024_2025_main.json --out data/raw
 |------|------|------|
 | `warnings` | `hko/rstorm.dat`、`hko/tc.dat`（及解析后的 `rainstorm_warnings.csv`、`tc_signals.csv`） | S4、S5（不在 DATA.GOV.HK 上） |
 | `static` | `hko/daily_HKO_RF_ALL.csv`、`td/traffic_speed_volume_occ_info.csv` | S8；S2 实时副本（与其 2026-04 版本相同） |
-| `static-history` | `td/traffic_speed_volume_occ_info/<YYYYMMDD>.csv`、`td/speed_segments_info/<YYYYMMDD>.csv` | S2 的 2021-08 至 2021-12 和 2026-04 版本；N1 的 2021-08 至 2022-10 版本 |
+| `static-history` | `td/traffic_speed_volume_occ_info/<YYYYMMDD>.csv`、`td/speed_segments_info/<YYYYMMDD>.csv` | S2 的 2021-08 至 2021-12 和 2026-04 版本；S14 的 2021-08 至 2022-10 版本 |
 | `holidays` | `calendar/public_holidays.csv` | S6（所有存档版本合并） |
 
 两边都有的版本已逐字节核对，`src.download` 的副本已删除。
@@ -101,7 +103,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 
 | 来源 | 数据字典（在 `data/raw/` 下） | 不同的内容 |
 |------|------------------------------|------------|
-| S1、S2、S11、N1 | 各资源文件夹及 `td/data-dictionary/` 里的 `dataspec-traffic-data-strategic-major-roads.pdf`（20210812、20211118、20240418） | 20211118 → 20240418（最后更新 2022 年 11 月 30 日）：只改了措辞（`valid`、占用率定义），结构不变 |
+| S1、S2、S11、S14 | 各资源文件夹及 `td/data-dictionary/` 里的 `dataspec-traffic-data-strategic-major-roads.pdf`（20210812、20211118、20240418） | 20211118 → 20240418（最后更新 2022 年 11 月 30 日）：只改了措辞（`valid`、占用率定义），结构不变 |
 | S9、S10 | `dataspec-traffic-data-slp.pdf`（20231228、20240418） | 一种：XML 结构与 S1 相同 |
 | S3 | `HKO_Open_Data_API_Documentation.pdf`（11 个版本） | 三种；它说明的是 JSON API，**不是我们用的 RSS 文件** |
 | S4、S5 | `hko/data-dictionary/hko-webpage-warndb3.shtml.html`、`…warndb1.shtml.html` | **没有官方数据字典**：保存的是天文台数据库网页（2026-09-29），里面有临时记录、信号编号沿革等说明 |
@@ -116,10 +118,10 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | 发现 | 详情 |
 |------|------|
 | `valid` = 探测器在线 / 离线 | S1/S9：2022 年的字典把 `Y` 定义为 "Detector Online"、`N` 为 "Detector Offline"（2021 年写的是 "valid / non-valid"） |
-| 字典里的列名 ≠ 文件 | S2 字典写 `Device_ID`，文件里是 `AID_ID_Number`；N1 字典写 `segment_id`、`road name`，文件里是 `irn_id`、`ucase(route)`。以文件为准 |
+| 字典里的列名 ≠ 文件 | S2 字典写 `Device_ID`，文件里是 `AID_ID_Number`；S14 字典写 `segment_id`、`road name`，文件里是 `irn_id`、`ucase(route)`。以文件为准 |
 | S3 格式没有文档 | RSS 公告是自由文字；我们的解析器遇到任何意外都会直接报错（见 S3） |
 | 存档里有截断的字典文件 | 6 个版本缺少 PDF 结尾标记 `%%EOF`（天文台 API 文档 20240921、20241022、20241116、20250311；格点临近预报 20240921、20241010）；第二天的版本是完整的 |
-| 存档链接损坏 | 字典版本 20221214（运输署主要道路）和 20240229（天文台 API）跳转到存储服务器上不存在的文件（404），所以硬盘上没有；N1 改为保存 20211118 和 20240418 |
+| 存档链接损坏 | 字典版本 20221214（运输署主要道路）和 20240229（天文台 API）跳转到存储服务器上不存在的文件（404），所以硬盘上没有；S14 改为保存 20211118 和 20240418 |
 
 ---
 
@@ -391,7 +393,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | 实测 | 2025-08 有 21,414 份快照（相隔约 1–2 分钟），每月解压后 7.9 GB；每个文件 4,405 个路段，一份样本中 41 个 `valid = N`。17:02 存档的文件 `time` 是 16:55。`irn_version` 为 `20221210` |
 | 关联 | `segment_id` 就是 S12 道路中心线的 `ROUTE_ID`：一份 2025-08 快照的 4,405 个编号中，4,395 个能在 2025-08 的 CENTERLINE 图层中找到（其余 10 个尚未对照旧版本） |
 
-### N1. 路段表（`speed_segments_info.csv`）
+### S14. 路段表（`speed_segments_info.csv`）
 
 `https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv`，
 4,255 行 × 2 列（2023-09）：`irn_id`（路段编号）和 `ucase(route)`（路段所属的**路线编号**；共 174 个，例如路线 `9` 有 423 个路段）。

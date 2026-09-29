@@ -30,10 +30,13 @@ Everything below is under `data/raw/`. **Main** = needed by the core analysis;
 | [S9](#s9-smart-lamppost-detector-readings-rawspeedvol_slp-allxml) | Smart-lamppost detector readings | TD | 30 s periods | lane × detector (17 reporting) | 2024-01 .. 2025-12, monthly bundles | 0.9 GB | optional |
 | [S10](#s10-smart-lamppost-detector-locations-traffic_speed_volume_occ_info-slpcsv) | Smart-lamppost detector locations | TD | versions | detector | 2023-12, 2024-01 | 8 kB | optional |
 | [S11](#s11-segment-speeds-irnavgspeed-allxml) | Segment speeds (TD processed) | TD | ~1 min snapshots | road segment (~4,400) | 2024-01 .. 2025-12, monthly bundles | 13 GB | optional |
-| [N1](#n1-road-network-segments-speed_segments_infocsv) | Segment → route number | TD | versions | road segment | 2021-08 .. 2023-09, 6 versions | 0.2 MB | optional |
+| [S14](#s14-road-network-segments-speed_segments_infocsv) | Segment → route number | TD | versions | road segment | 2021-08 .. 2023-09, 6 versions | 0.2 MB | optional |
 | [S12](#s12-road-network-2nd-generation-rdnet_irnpgdbzip) | Road network geometry (FGDB) | TD | versions (34 in 2024–25) | road centreline (35,837) | 2024-01 .. 2025-12, monthly bundles | 0.6 GB | optional |
 | [S13](#s13-special-traffic-news-trafficnewsxml) | Special traffic news (incidents, closures) | TD | per message update | location text; some with district / lat-lon | 2024-01 .. 2025-12, monthly bundles | 61 MB | optional |
 | [S7](#s7-gridded-rainfall-nowcast) | Gridded rainfall nowcast (radar **forecast**) | HKO | every 15 min, +30 .. +120 min | ~2 km grid, 121 × 121 | 2024-01 .. 2025-12, monthly bundles | 12 GB | optional |
+
+IDs: **S** = a source we use; **N** = one we cannot or do not use. (S14 was N1 until
+2026-09-29, when it came into use for S11.)
 
 Not obtainable for the past: [N2 station hourly rainfall](#n2-automatic-weather-station-hourly-rainfall-hourlyrainfallphp)
 and HKO's JSON Current Weather Report (`weather.php?dataType=rhrread`); neither is in the Historical Archive.
@@ -42,12 +45,12 @@ and HKO's JSON Current Weather Report (`weather.php?dataType=rhrread`); neither 
 
 Two downloaders, by where the data comes from:
 
-**`hkdata.download` (DATA.GOV.HK Historical Archive)** — S1, S2 (3 versions), S3, S7, S9–S13, N1 (1 version).
+**`hkdata.download` (DATA.GOV.HK Historical Archive)** — S1, S2 (3 versions), S3, S7, S9–S14 (S14: 1 version).
 Driven by the plans in `hkdata/plans/`; layout `data/raw/<url host>/<url path>/`:
 
 | Plan | Contents | Size |
 |------|----------|------|
-| `2024_2025_main.json` | S1, S3, S13, S2 (2022-03, 2024-02, 2025-10), N1 (2023-09) | 25.2 GB |
+| `2024_2025_main.json` | S1, S3, S13, S2 (2022-03, 2024-02, 2025-10), S14 (2023-09) | 25.2 GB |
 | `2024_2025_optional.json` | S11, S9, S7, S10 | 28.1 GB |
 | `road_network_2024_2025.json` | S12 | 0.6 GB |
 
@@ -72,7 +75,7 @@ versions the plans do not include:
 |---------|--------|------|
 | `warnings` | `hko/rstorm.dat`, `hko/tc.dat` (+ parsed `rainstorm_warnings.csv`, `tc_signals.csv`) | S4, S5 (not on DATA.GOV.HK) |
 | `static` | `hko/daily_HKO_RF_ALL.csv`, `td/traffic_speed_volume_occ_info.csv` | S8; S2 live copy (= its 2026-04 version) |
-| `static-history` | `td/traffic_speed_volume_occ_info/<YYYYMMDD>.csv`, `td/speed_segments_info/<YYYYMMDD>.csv` | S2 2021-08 .. 2021-12 and 2026-04; N1 2021-08 .. 2022-10 |
+| `static-history` | `td/traffic_speed_volume_occ_info/<YYYYMMDD>.csv`, `td/speed_segments_info/<YYYYMMDD>.csv` | S2 2021-08 .. 2021-12 and 2026-04; S14 2021-08 .. 2022-10 |
 | `holidays` | `calendar/public_holidays.csv` | S6 (all archived versions merged) |
 
 Versions in both places were checked byte for byte and the `src.download` copies deleted.
@@ -113,7 +116,7 @@ the table names the distinct ones.
 
 | Source | Dictionary (under `data/raw/`) | Distinct content |
 |--------|--------------------------------|------------------|
-| S1, S2, S11, N1 | `dataspec-traffic-data-strategic-major-roads.pdf` in each resource folder and `td/data-dictionary/` (20210812, 20211118, 20240418) | 20211118 → 20240418 (last update 30 Nov 2022): only wording (`valid`, occupancy definition); structure unchanged |
+| S1, S2, S11, S14 | `dataspec-traffic-data-strategic-major-roads.pdf` in each resource folder and `td/data-dictionary/` (20210812, 20211118, 20240418) | 20211118 → 20240418 (last update 30 Nov 2022): only wording (`valid`, occupancy definition); structure unchanged |
 | S9, S10 | `dataspec-traffic-data-slp.pdf` (20231228, 20240418) | one: same XML structure as S1 |
 | S3 | `HKO_Open_Data_API_Documentation.pdf` (11 versions) | three; it documents the JSON API, **not the RSS file** we use |
 | S4, S5 | `hko/data-dictionary/hko-webpage-warndb3.shtml.html`, `…warndb1.shtml.html` | **no official dictionary**: the HKO database web pages, saved 2026-09-29 (notes on provisional records, signal-number history) |
@@ -128,10 +131,10 @@ Found while reading them:
 | Finding | Detail |
 |---------|--------|
 | `valid` = detector online / offline | S1/S9: the 2022 dictionary defines `Y` as "Detector Online" and `N` as "Detector Offline" (2021: "valid / non-valid") |
-| Dictionary column names ≠ files | S2 is documented as `Device_ID`, the file has `AID_ID_Number`; N1 as `segment_id`, `road name`, the file has `irn_id`, `ucase(route)`. The files are what we use |
+| Dictionary column names ≠ files | S2 is documented as `Device_ID`, the file has `AID_ID_Number`; S14 as `segment_id`, `road name`, the file has `irn_id`, `ucase(route)`. The files are what we use |
 | S3 format undocumented | The RSS bulletin is free text; our parser fails loudly on anything unexpected (see S3) |
 | Truncated dictionary files in the archive | 6 versions lack the PDF end marker `%%EOF` (HKO API documentation 20240921, 20241022, 20241116, 20250311; gridded nowcast 20240921, 20241010); the next day's version is complete |
-| Broken archive links | Dictionary versions 20221214 (TD strategic roads) and 20240229 (HKO API) redirect to files the storage host does not have (404), so they are not on disk; N1 has 20211118 and 20240418 instead |
+| Broken archive links | Dictionary versions 20221214 (TD strategic roads) and 20240229 (HKO API) redirect to files the storage host does not have (404), so they are not on disk; S14 has 20211118 and 20240418 instead |
 
 ---
 
@@ -406,7 +409,7 @@ Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not
 | Observed | 21,414 snapshots in 2025-08 (~1–2 min apart), 7.9 GB uncompressed per month; 4,405 segments per file, `valid = N` on 41 of them in one sample. File archived 17:02 held `time` 16:55. `irn_version` was `20221210` |
 | Link | `segment_id` is `ROUTE_ID` of the S12 road centreline: 4,395 of 4,405 ids of a 2025-08 snapshot are in the 2025-08 CENTERLINE layer (the other 10 not yet checked against older versions) |
 
-### N1. Road network segments (`speed_segments_info.csv`)
+### S14. Road network segments (`speed_segments_info.csv`)
 
 `https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv`,
 4,255 rows × 2 columns (2023-09): `irn_id` (segment ID) and `ucase(route)` (the **route number** the

@@ -17,7 +17,7 @@ already in the pipeline.
 
 - **S11 Traffic Speeds of Road Network Segments (Processed Data)** — `irnAvgSpeed-all.xml`.
   TD's own segment aggregation; useful for cross-validation against our per-lane data.
-  With **N1** `speed_segments_info.csv` (segment → route number) and **S12** Road Network
+  With **S14** `speed_segments_info.csv` (segment → route number) and **S12** Road Network
   (2nd Generation) `RdNet_IRNP.gdb.zip` (segment geometry: `segment_id` = CENTERLINE `ROUTE_ID`).
 - **S13 Special Traffic News (2nd gen)** — `trafficnews.xml`. Lets us flag accident / closure
   periods as confounders, separate from rainfall.

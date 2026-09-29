@@ -19,7 +19,7 @@
 ```bash
 python -m src.download warnings         # S4、S5 -> data/raw/hko/、data/interim/rainstorm_episodes.csv
 python -m src.download static           # S8、S2 实时副本 -> data/raw/hko/、data/raw/td/
-python -m src.download static-history   # S2、N1 的存档版本 -> data/raw/td/<名称>/<YYYYMMDD>.csv
+python -m src.download static-history   # S2、S14 的存档版本 -> data/raw/td/<名称>/<YYYYMMDD>.csv
 python -m src.download holidays         # S6 -> data/raw/calendar/public_holidays.csv
 ```
 
@@ -46,12 +46,12 @@ python -m src.download holidays         # S6 -> data/raw/calendar/public_holiday
 
 ### `static`（`src/download/static.py`）
 
-S2、N1 和 S8 **原样保存**。如果天文台服务器断开连接（在某些云主机上会发生），
+S2、S14 和 S8 **原样保存**。如果天文台服务器断开连接（在某些云主机上会发生），
 就改从历史存档下载最新的一份。
 
 ### `static-history`（`src/download/static.py`）
 
-S2 和 N1 的每个存档版本：每个月度打包文件里的 CSV 原样保存为 `data/raw/td/<名称>/<打包文件 YYYYMMDD>.csv`；
+S2 和 S14 的每个存档版本：每个月度打包文件里的 CSV 原样保存为 `data/raw/td/<名称>/<打包文件 YYYYMMDD>.csv`；
 硬盘上已有的版本会跳过。
 
 ### `holidays`（`src/download/holidays.py`）

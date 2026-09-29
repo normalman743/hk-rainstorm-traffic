@@ -21,7 +21,7 @@ them derive small tables, described below.
 ```bash
 python -m src.download warnings         # S4, S5 -> data/raw/hko/, data/interim/rainstorm_episodes.csv
 python -m src.download static           # S8, S2 live copy -> data/raw/hko/, data/raw/td/
-python -m src.download static-history   # S2, N1 archived versions -> data/raw/td/<name>/<YYYYMMDD>.csv
+python -m src.download static-history   # S2, S14 archived versions -> data/raw/td/<name>/<YYYYMMDD>.csv
 python -m src.download holidays         # S6 -> data/raw/calendar/public_holidays.csv
 ```
 
@@ -48,12 +48,12 @@ Tropical cyclone signals → `data/raw/hko/tc_signals.csv`:
 
 ### `static` (`src/download/static.py`)
 
-S2, N1 and S8 are saved **unchanged**. If the HKO server resets the connection (this
+S2, S14 and S8 are saved **unchanged**. If the HKO server resets the connection (this
 happens from some cloud hosts), the latest copy is fetched from the Historical Archive instead.
 
 ### `static-history` (`src/download/static.py`)
 
-Every archived version of S2 and N1: for each monthly bundle, its CSV member is saved
+Every archived version of S2 and S14: for each monthly bundle, its CSV member is saved
 unchanged as `data/raw/td/<name>/<bundle YYYYMMDD>.csv`; versions already on disk are skipped.
 
 ### `holidays` (`src/download/holidays.py`)

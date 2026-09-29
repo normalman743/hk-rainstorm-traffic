@@ -28,7 +28,7 @@
 | S9 | [智能灯柱交通探测器](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts)，`rawSpeedVol_SLP-all.xml`（运输署） | 历史存档（`hkdata.download`） | 30 秒时段 | 2024-01 至 2025-12 | 额外的探测器（格式与 S1 相同） | 可选；已下载 |
 | S10 | 智能灯柱探测器位置，CSV（运输署） | 历史存档（`hkdata.download`） | 按版本 | 2023-12、2024-01 | S9 探测器的属性 | 可选；已下载 |
 | S11 | 路网路段车速（处理后数据），`irnAvgSpeed-all.xml`（运输署） | 历史存档（`hkdata.download`） | 约 1 分钟 | 2024-01 至 2025-12 | 运输署自己算的路段车速，用于交叉核对 | 可选；已下载 |
-| N1 | [路网路段](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv)，`speed_segments_info.csv`（运输署） | 历史存档（`hkdata.download`、`src.download static-history`） | 按版本 | 6 个版本，2021-08 至 2023-09 | S11 的路段 → 路线编号 | 可选；已下载 |
+| S14 | [路网路段](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv)，`speed_segments_info.csv`（运输署） | 历史存档（`hkdata.download`、`src.download static-history`） | 按版本 | 6 个版本，2021-08 至 2023-09 | S11 的路段 → 路线编号 | 可选；已下载 |
 | S12 | [第二代道路网络](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2)，`RdNet_IRNP.gdb.zip`（运输署） | 历史存档（`hkdata.download`） | 按版本 | 2024-01 至 2025-12（34 个版本） | S11 路段的几何（`ROUTE_ID`） | 可选；已下载 |
 | S13 | [特别交通消息（第二代）](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2)，`trafficnews.xml`（运输署） | 历史存档（`hkdata.download`） | 每条消息的每次更新 | 2024-01 至 2025-12 | 把事故 / 封路标记为干扰因素 | 可选；已下载 |
 | S7 | [格点雨量临近预报](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv)，CSV（天文台） | 历史存档（`hkdata.download`） | 约每 15 分钟 | 2024-01 至 2025-12（存档自约 2022 年 7 月起） | 局部（约 2 公里）雨量的代理变量 | 可选；已下载 |
@@ -47,7 +47,7 @@
 ## 2. 原始数据字典
 
 每个原始来源（格式、获取方式、结构、每个字段的官方说明、实测取值和数据问题）都记录在
-**[`raw_data.zh.md`](raw_data.zh.md)**，使用相同的编号 S1–S13 和 N1，并注明每个来源的数据字典放在哪里。
+**[`raw_data.zh.md`](raw_data.zh.md)**，使用相同的编号 S1–S14，并注明每个来源的数据字典放在哪里。
 每个来源怎样变成下面的表，见 **[`processing.zh.md`](processing.zh.md)**。
 
 ---
