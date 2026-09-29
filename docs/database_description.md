@@ -12,16 +12,26 @@ stored without a time zone, unless stated otherwise.
 
 ## 1. Source inventory
 
-| ID | Source (provider) | Access | Frequency | History available | Role | Status |
-|----|-------------------|--------|-----------|-------------------|------|--------|
-| S1 | [Traffic Speed, Volume and Road Occupancy (Raw Data)](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads), `rawSpeedVol-all.xml` (TD) | Historical Archive API | 30 s periods, published every 1 min | from Jun 2021 (but only 42 detectors until ~Nov 2021) | Target variables | **Required**, done (download + parse) |
-| S2 | [Locations of Traffic Detectors](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv), CSV (TD) | Direct download | Static | Latest version only | Detector attributes, spatial join | **Required**, downloader done |
-| S3 | [Current Weather Report](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report), `CurrentWeather.xml` (HKO) | Historical Archive API | Hourly | from Jun 2021 | **District** past-hour rainfall | **Required**, done (download + parse) |
-| S4 | [Rainstorm Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml), `rstorm.dat` (HKO) | Direct download | Per event | since Mar 1998 | Warning state at each time | **Required**, done |
-| S5 | [Tropical Cyclone Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml), `tc.dat` (HKO) | Direct download | Per event | since 1946 | Exclude typhoon periods | **Required**, done |
-| S6 | [Hong Kong Public Holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal), `en.json` (1823) | Direct download (2025–27) + Historical Archive (older versions) | Yearly | 2018–2027 across archived versions | Working day / weekend / holiday | **Required**, done |
-| S7 | [Gridded Rainfall Nowcast](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv), CSV (HKO) | Historical Archive API | ~every 15 min | from ~Jul 2022 | Local (~2 km) rainfall proxy | Optional, downloader to do |
-| S8 | [Daily Total Rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall), `daily_HKO_RF_ALL.csv` (HKO) | Direct download | Daily | since 1884 | Day-level sanity checks | Auxiliary, done |
+"Downloaded" is what is on disk under `data/raw/` (inventory, locations and data dictionaries:
+[`raw_data.md`](raw_data.md#inventory-on-disk-2026-09-29)). "Parsed" means `src.pipeline` turns it
+into a processed table; that pipeline is being rewritten to read the downloaded monthly bundles.
+
+| ID | Source (provider) | Access | Frequency | Downloaded | Role | Status |
+|----|-------------------|--------|-----------|------------|------|--------|
+| S1 | [Traffic Speed, Volume and Road Occupancy (Raw Data)](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads), `rawSpeedVol-all.xml` (TD) | Historical Archive (`hkdata.download`) | 30 s periods, published every 1 min | 2024-01 .. 2025-12 (archive from Jun 2021; only 42 detectors until ~Nov 2021) | Target variables | **Required**; downloaded; parsed (earlier pipeline, 362 selected days) |
+| S2 | [Locations of Traffic Detectors](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv), CSV (TD) | Historical Archive (`hkdata.download`, `src.download static-history`) | Versions | 8 versions, 2021-08 .. 2026-04 | Detector attributes, spatial join | **Required**; downloaded |
+| S3 | [Current Weather Report](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report), `CurrentWeather.xml` (HKO) | Historical Archive (`hkdata.download`) | Hourly | 2024-01 .. 2025-12 (archive from Jun 2021) | **District** past-hour rainfall | **Required**; downloaded; parsed (earlier pipeline, 362 selected days) |
+| S4 | [Rainstorm Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml), `rstorm.dat` (HKO) | Direct download (`src.download warnings`) | Per event | since Mar 1998 | Warning state at each time | **Required**; downloaded; parsed |
+| S5 | [Tropical Cyclone Warning Signals DB](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml), `tc.dat` (HKO) | Direct download (`src.download warnings`) | Per event | since 1946 | Exclude typhoon periods | **Required**; downloaded; parsed |
+| S6 | [Hong Kong Public Holidays](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal), `en.json` (1823) | Direct download + Historical Archive (`src.download holidays`) | Yearly | 2018–2027 across archived versions | Working day / weekend / holiday | **Required**; downloaded; parsed |
+| S8 | [Daily Total Rainfall](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall), `daily_HKO_RF_ALL.csv` (HKO) | Direct download (`src.download static`) | Daily | since 1884 | Day-level sanity checks | Auxiliary; downloaded |
+| S9 | [Smart-lamppost traffic detectors](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts), `rawSpeedVol_SLP-all.xml` (TD) | Historical Archive (`hkdata.download`) | 30 s periods | 2024-01 .. 2025-12 | Extra detectors (same format as S1) | Optional; downloaded |
+| S10 | Smart-lamppost detector locations, CSV (TD) | Historical Archive (`hkdata.download`) | Versions | 2023-12, 2024-01 | Attributes of S9 detectors | Optional; downloaded |
+| S11 | Traffic Speeds of Road Network Segments (Processed Data), `irnAvgSpeed-all.xml` (TD) | Historical Archive (`hkdata.download`) | ~1 min | 2024-01 .. 2025-12 | TD's own segment speeds, cross-check | Optional; downloaded |
+| N1 | [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv), `speed_segments_info.csv` (TD) | Historical Archive (`hkdata.download`, `src.download static-history`) | Versions | 6 versions, 2021-08 .. 2023-09 | Segment → route number for S11 | Optional; downloaded |
+| S12 | [Road Network (2nd Generation)](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2), `RdNet_IRNP.gdb.zip` (TD) | Historical Archive (`hkdata.download`) | Versions | 2024-01 .. 2025-12 (34 versions) | Geometry of S11 segments (`ROUTE_ID`) | Optional; downloaded |
+| S13 | [Special Traffic News (2nd Generation)](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2), `trafficnews.xml` (TD) | Historical Archive (`hkdata.download`) | Per message update | 2024-01 .. 2025-12 | Flag incidents / closures as confounders | Optional; downloaded |
+| S7 | [Gridded Rainfall Nowcast](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv), CSV (HKO) | Historical Archive (`hkdata.download`) | ~every 15 min | 2024-01 .. 2025-12 (archive from ~Jul 2022) | Local (~2 km) rainfall proxy | Optional; downloaded |
 
 ### Sources considered and not used
 
@@ -29,7 +39,8 @@ stored without a time zone, unless stated otherwise.
 |--------|---------|
 | [Rainfall in the past hour from automatic weather stations](https://data.gov.hk/en-data/dataset/hk-hko-rss-rainfall-in-the-past-hour) (`hourlyRainfall.php`, 36 stations) | **Not archived.** The Historical Archive API returns `Not Found` for this resource in any date range, so only live data can be collected (from now on). This is why station-level matching is replaced by **district** rainfall (S3). Optionally, gridded nowcasts (S7) give sub-district detail. |
 | [HKO weather station locations](https://www.hko.gov.hk/en/cis/stn.htm) | Only needed for station-level rainfall. With the station feed unavailable historically, it is not required. It becomes relevant only if we add daily per-station rainfall (`daily_<STN>_RF_ALL.csv`). |
-| [Road Network Segments](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv) (`speed_segments_info.csv`) | Contains only `irn_id` and `ucase(route)`, the route number (174 values). It has no geometry and no detector mapping, and it belongs to the processed segment-speed feed (`irnAvgSpeed-all.xml`). Our unit of analysis is the detector, so it is not needed. |
+| HKO JSON Current Weather Report (`weather.php?dataType=rhrread`) | Structured per-district rainfall, but **not archived** (`Not Found`), so S3's RSS text is parsed instead. |
+| [Weather Warning Summary / Information](https://data.gov.hk/en-data/dataset/hk-hko-rss-weather-warning-summary) (RSS) | Archived, but only about **one snapshot a day** (~10:20), so warnings issued and cancelled between snapshots are missed; S4 / S5 give exact start and end times. |
 
 ---
 
@@ -37,7 +48,7 @@ stored without a time zone, unless stated otherwise.
 
 Every raw source (format, access, structure, each field with its official description,
 observed values and quirks) is documented in **[`raw_data.md`](raw_data.md)**, using the
-same IDs S1–S8. How each source is turned into the tables below is described in
+same IDs S1–S13 and N1, together with where each source's data dictionary is. How each source is turned into the tables below is described in
 **[`processing.md`](processing.md)**.
 
 ---
@@ -235,7 +246,7 @@ is a preprocessing experiment.
 | S1 | Only 1,730 of 2,880 periods per day present (~40 % missing) | Gap handling = experiment P6 |
 | S1 | When `volume = 0` (27.7 % of rows), `speed` holds a placeholder equal to the speed limit (70/80/100/50/110, s.d. = 0), not a measurement | Treat as missing / free-flow, part of experiment P3 |
 | S1 | `occupancy = -1` (60 rows), `speed` up to 300, `speed = 0` with `volume > 0` (5,991 rows on 5 Aug 2025) | Physical-bound filter, experiment P2 |
-| S1 / S2 | 772 detectors report but S2 lists 807; S2 is only the latest version | Inner join; report unmatched IDs |
+| S1 / S2 | 772 detectors report but S2 lists 807 (2026-04 version); S2 has 8 versions on disk (2021-08 .. 2026-04) | Use the version in force; inner join; report unmatched IDs |
 | S2 | District spelling: `Central & Western` vs `Central and Western` (1 row); 97 % of `Road_EN` values have trailing spaces | Normalise, strip |
 | S2 / S3 | TD uses `Southern`, HKO uses `Southern District` (also Eastern, Islands, North, Central & Western) | Strip the ` District` suffix, normalise `and` → `&` |
 | S3 | Rainfall is a min–max range per district, not a point value | Choice of min / mid / max = experiment P7 |
