@@ -1,0 +1,73 @@
+[
+  {
+    "url": "https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol-all.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20240418"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://rss.weather.gov.hk/rss/CurrentWeather.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20231110",
+      "20240418",
+      "20240921",
+      "20240922",
+      "20241022",
+      "20241023",
+      "20241108",
+      "20241116",
+      "20241117",
+      "20250311",
+      "20250312",
+      "20250923"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://www.td.gov.hk/en/special_news/trafficnews.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20191218",
+      "20240418"
+    ],
+    "schema": [
+      "20210608"
+    ]
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv",
+    "dates": [
+      "2022-03",
+      "2024-02",
+      "2025-10"
+    ],
+    "dictionary": [
+      "20211118",
+      "20240418"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv",
+    "dates": [
+      "2023-09"
+    ],
+    "dictionary": [
+      "20211118",
+      "20240418"
+    ],
+    "schema": []
+  }
+]

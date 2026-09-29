@@ -1,0 +1,52 @@
+[
+  {
+    "url": "https://resource.data.one.gov.hk/td/traffic-detectors/irnAvgSpeed-all.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20240418"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol_SLP-all.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20231228",
+      "20240418"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20220627",
+      "20240418",
+      "20240921",
+      "20240922",
+      "20241010",
+      "20241011"
+    ],
+    "schema": []
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-slp/info/traffic_speed_volume_occ_info-slp.csv",
+    "dates": [
+      "2023-12",
+      "2024-01"
+    ],
+    "dictionary": [
+      "20231228"
+    ],
+    "schema": []
+  }
+]

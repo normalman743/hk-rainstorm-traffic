@@ -1,0 +1,17 @@
+[
+  {
+    "url": "https://static.data.gov.hk/td/road-network-v2/RdNet_IRNP.gdb.zip",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ],
+    "dictionary": [
+      "20231026",
+      "20240418",
+      "20241029",
+      "20241128",
+      "20250327"
+    ],
+    "schema": []
+  }
+]

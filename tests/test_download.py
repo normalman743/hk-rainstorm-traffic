@@ -1,10 +1,11 @@
 import io
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
 from src.download.archive import extract_member
+from src.download.holidays import parse_holidays
 from src.download.warnings import group_episodes, parse_rainstorm, parse_tc
 
 RSTORM = (
@@ -63,3 +64,9 @@ def test_extract_member_from_raw_bytes(method):
     assert extract_member(raw[info.header_offset:], info) == payload
     # Too few bytes -> None so the caller fetches a bigger range.
     assert extract_member(raw[info.header_offset:info.header_offset + 60], info) is None
+
+
+def test_parse_holidays():
+    raw = ('﻿{"vcalendar":[{"vevent":[{"dtstart":["20250101",{"value":"DATE"}],'
+           '"dtend":["20250102",{"value":"DATE"}],"summary":"The first day of January"}]}]}').encode()
+    assert parse_holidays(raw) == {date(2025, 1, 1): "The first day of January"}

@@ -1,8 +1,9 @@
 """Command-line entry point: python -m src.download <command> ...
 
-    warnings      HKO rainstorm + tropical cyclone warning databases -> CSV
-    static        detector locations, road segments, daily rainfall
-    holidays      Hong Kong general holidays 2018-2027 (merged archived versions)
+    warnings        HKO rainstorm + tropical cyclone warning databases -> CSV
+    static          detector locations, road segments, daily rainfall (latest version)
+    static-history  every archived version of detector locations / road segments
+    holidays        Hong Kong general holidays 2018-2027 (merged archived versions)
     select-days   build data/interim/day_manifest.csv (event + control days)
     fetch         download archived snapshots for given days
 """
@@ -18,7 +19,7 @@ from src.config import ARCHIVED_SOURCES
 from src.download.archive import download_day
 from src.download.holidays import download_holidays
 from src.download.select_days import MANIFEST, read_manifest, select_days, write_manifest
-from src.download.static import download_static
+from src.download.static import download_static, download_static_history
 from src.download.warnings import LEVELS, download_warnings
 
 
@@ -32,7 +33,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("warnings", help="download HKO warning databases")
-    sub.add_parser("static", help="download static reference files")
+    sub.add_parser("static", help="download static reference files (latest version only)")
+    sub.add_parser("static-history", help="download every archived version of static reference files")
     sub.add_parser("holidays", help="download Hong Kong public holidays")
 
     sel = sub.add_parser("select-days", help="choose event and control days")
@@ -59,6 +61,8 @@ def main() -> None:
         download_warnings()
     elif args.command == "static":
         download_static()
+    elif args.command == "static-history":
+        download_static_history()
     elif args.command == "holidays":
         download_holidays()
     elif args.command == "select-days":
