@@ -17,7 +17,7 @@
   （原始月度打包文件约 53 GB），每个都配有官方数据字典。
   清单见 [`docs/raw_data.zh.md`](docs/raw_data.zh.md) 的"数据清单"一节。
 - **下一步：数据处理。** 正在编写脚本，把原始打包文件处理成分析用的表。
-  下方的"数据处理流程"一节描述的仍是之前按天处理的流程。
+  之前按天处理的流程已删除（见"数据处理"一节）。
 
 ## 研究问题
 
@@ -86,74 +86,12 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 `data/raw/<网址主机>/<网址路径>/bundle/`，旁边是该资源的数据字典（`data-dictionary/`）。
 `hkdata.download` 也可以用 HTTP 分段请求只取打包文件中的某几天。
 
-## 数据处理流程
+## 数据处理
 
-> **正在重写。** 本节描述的是之前的流程：它自己下载选定的日子，解析后删除 ZIP。
-> 新流程将直接读取 `data/raw/` 里已有的月度打包文件（见"当前进度"）。
-
-共四步。每一步都会跳过**用当前代码版本**已完成的工作，并重建旧版本生成的结果，所以中断或改代码后任何一步都可以重跑。
-进度条显示已完成的天数和已下载的文件数。第 3 步之后，`src.validate` 会检查所有已处理的日子，
-并给每张表做概况统计（NA、不同值的个数、最常见的值）；见 [`docs/processing.zh.md`](docs/processing.zh.md)。
-
-```bash
-pip install -r requirements.txt
-
-# 1. 参考数据（几秒钟）
-python -m src.download warnings     # 暴雨 + 台风信号 -> data/raw/hko/、data/interim/rainstorm_episodes.csv
-python -m src.download static       # 探测器位置、路段表、天文台逐日雨量 -> data/raw/td/、data/raw/hko/
-python -m src.download holidays     # 2018-2027 公众假期 -> data/raw/calendar/public_holidays.csv
-
-# 2. 选日子 -> data/interim/day_manifest.csv
-python -m src.download select-days --min-level R      # 红/黑雨事件 + 对照日：59 天（建议从这里开始）
-python -m src.download select-days                    # 黄雨及以上：298 天
-
-# 3. 按天下载 -> Parquet -> 删除 ZIP -> data/processed/{traffic_lane,rainfall_district}/
-python -m src.pipeline --manifest                     # 或 --days 2025-08-05 ... / --range START END
-
-# 4. 探测器 × 15 分钟表 -> data/processed/traffic_15min/
-python -m src.aggregate --manifest
-
-# 全面检查 -> data/processed/validation_report.md（第 3 步也会自动运行）
-python -m src.validate --manifest
-```
-
-然后在 Python 里：
-
-```python
-from datetime import date
-import pandas as pd
-from src.data import load_traffic_lane, load_rainfall_district
-
-lanes = load_traffic_lane([date(2025, 8, 5)])       # 约 360 万行：time, detector_id, lane, speed, occupancy, volume, sd, valid
-rain = load_rainfall_district([date(2025, 8, 5)])   # 24 小时 × 18 区
-t15 = pd.read_parquet("data/processed/traffic_15min/2025/20250805.parquet")
-```
-
-### 各步骤细节
-
-**`select-days`** 的选项：`--years`（默认 `2022-2025`；2021 年到 11 月前只有 42 个探测器）、`--months`（默认 `4-10`）、
-`--min-level` `A`/`R`/`B`（算作事件的最低警告级别）、`--pad-hours`（默认 3，每次事件前后各加几小时）、
-`--controls`（默认 2）。对照日是事件日之前一或两周的同一星期几，且当天没有暴雨警告、也没有热带气旋信号。
-
-| 设置（2022–2025，4–10 月） | 天数（事件 + 对照） | 下载量（用完删除） | 保留在硬盘上 | 耗时（第 3 步） |
-|---|---|---|---|---|
-| `--min-level B` | 20（9 + 11） | 约 0.6 GB | 约 0.2 GB | 约 10 分钟 |
-| `--min-level R` | 59（28 + 31） | 约 1.8 GB | 约 0.7 GB | 约 25 分钟 |
-| `--min-level A`（默认） | 298（129 + 169） | 约 9.2 GB | 约 3.3 GB | 约 2 小时 |
-
-**`pipeline`** 在主进程里下载（每天 16 个线程，`--workers`），在 `--jobs` 个工作进程里解析（默认 3 个；
-每个进程处理一天交通数据约需 1.6 GB 内存）。下载最多领先解析 `--jobs` 天，所以硬盘上同时只有几个 ZIP。
-实测：`--jobs 3` 时每天交通数据约 24 秒（受下载速度限制），`--jobs 1` 时约 34 秒。`--keep-raw` 保留 ZIP。
-每天的覆盖情况（快照数、行数、时段数、探测器数、修正日期的时段数、公告数、最大雨量、错误）写入
-`data/processed/coverage.csv`。某天失败会记录在那里，然后继续处理其他日子。
-之后 `src.validate` 写出 `data/processed/validation_report.md`，并列出每个 FAIL / WARN（`--no-validate` 跳过）。
-
-**`aggregate`** 为每个探测器的每个 15 分钟时段写一行：读数计数（`n_readings`、`n_periods`、`n_invalid`、
-`n_zero_volume`、`n_speed_over_130`）、`volume_sum`、`occupancy_mean`，以及两种车速，方便直接比较基本清洗规则的效果：
-`speed_naive`（所有读数的简单平均）和 `speed_clean`（`valid == 'Y'` 且 `volume > 0` 的读数按车流加权平均）。
-每天约 10 秒、约 0.9 MB。
-
-如果只想要原始 XML，`python -m src.download fetch <sources> --days|--range|--manifest` 只下载 ZIP、不解析。
+**正在重写。** 之前的流程（下载选定的日子 → 解析 → Parquet → 删除 ZIP，另有探测器 × 15 分钟表和数据检查）
+已于 2026-09-29 连同其输出一起删除；该日期之前的 git 历史里还能找到。新流程将读取 `data/raw/` 里已有的月度打包文件。
+`src.download` 自己生成的内容（警告信号、暴雨事件、假期，以及可选的选日子 `select-days`）见
+[`docs/processing.zh.md`](docs/processing.zh.md)。
 
 ## 目前发现的数据问题
 
@@ -163,12 +101,11 @@ t15 = pd.read_parquet("data/processed/traffic_15min/2025/20250805.parquet")
 - **探测器网络在扩大：** 42 个（2021 年 7 月）、554 个（2021 年 12 月）、约 680 个（2023 年）、770 个（2025 年）。
   位置表列出 807 个。
 - **`s.d.` 约 2021 年 11 月 18 日起才有。**
-- **快照时间 ≠ 测量时间：** 08:01 存档的文件里是 07:53:00–07:54:00 的数据。解析器用 `<period_from>`。
-- **午夜日期问题：** 00:00 那个时段带的是前一天的 `<date>`。解析器用文件的存档时间修正（覆盖表中的 `n_periods_redated`）。
+- **快照时间 ≠ 测量时间：** 08:01 存档的文件里是 07:53:00–07:54:00 的数据；测量时间是 `<period_from>`。
+- **午夜日期问题：** 00:00 那个时段带的是前一天的 `<date>`；文件的存档时间能看出真正的日期。
 - **缺口：** 每天的快照数随月份变化（约 530–1,430）。2025 年 8 月 5 日 2,880 个 30 秒时段只有 1,730 个。
-- **截断文件：** 少数存档的 XML 文件被截断（2025 年 7 月 29 日 919 份中有 1 份）。解析器保留截断前完整的读数，
-  并统计这类文件（覆盖表中的 `n_truncated_files`）。
-- **重叠：** 相邻快照会重复读数（约 9% 的行），打包文件有时把同一个文件存两次。两者都会去重。
+- **截断文件：** 少数存档的 XML 文件被截断（2025 年 7 月 29 日 919 份中有 1 份）。
+- **重叠：** 相邻快照会重复读数（约 9% 的行），打包文件有时把同一个文件存两次。
 - **车速填充值：** `volume = 0` 时（约 28% 的读数），`speed` 是道路限速（70/80/100/50/110，s.d. = 0），不是测量值。
 - **超出范围的值：** 车速最高 300 km/h、occupancy = −1、车速为 0 但车流 > 0；约 0.5% 的读数 `valid = N`。
 - **名称：** 探测器表里同时有 `Central & Western` 和 `Central and Western`，大多数道路名末尾有多余空格。
@@ -189,17 +126,11 @@ t15 = pd.read_parquet("data/processed/traffic_15min/2025/20250805.parquet")
 ```
 .
 ├── README(.zh).md, PROPOSAL.md, requirements.txt
-├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md
+├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md, course_project.md
 ├── hkdata/             # 通用 DATA.GOV.HK 工具库：discover（搜索、存档覆盖情况）、download（按 plan 下载）
 │   └── plans/          # data/raw 用到的下载 plan
 ├── src/
-│   ├── download/       # 第 1-2 步（及 fetch）：存档客户端、警告、静态文件、假期、选日子
-│   ├── parse/          # 交通 XML 和天气公告 -> 表
-│   ├── pipeline.py     # 第 3 步：下载 -> Parquet -> 删除 ZIP，并行，带进度条
-│   ├── aggregate.py    # 第 4 步：探测器 × 15 分钟表
-│   ├── validate.py     # 检查所有表并做概况统计 -> validation_report.md
-│   ├── storage.py      # 记录生成代码版本的 Parquet 文件
-│   ├── data.py         # 读取处理后的表
+│   ├── download/       # plan 之外的来源：警告、静态文件、假期；选日子；fetch
 │   └── config.py       # 路径和数据来源网址
 ├── tests/
 ├── data/               # git 忽略；raw/ 由下载命令生成，interim/ 和 processed/ 由处理流程生成

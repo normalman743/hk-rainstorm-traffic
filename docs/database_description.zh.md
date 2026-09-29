@@ -13,14 +13,14 @@
 ## 1. 数据来源清单
 
 "已下载"指 `data/raw/` 下硬盘上已有的数据（清单、位置和数据字典见
-[`raw_data.zh.md`](raw_data.zh.md) 的"数据清单"一节）。"已解析"指 `src.pipeline` 已把它处理成表；
-这个处理流程正在重写，改为读取已下载的月度打包文件。
+[`raw_data.zh.md`](raw_data.zh.md) 的"数据清单"一节）。"已解析"指 `src.download` 还会用它生成一张表（见第 3 节）。
+数据处理流程正在重写，目前还没有任何来源有处理后的表。
 
 | 编号 | 来源（提供者） | 获取方式 | 频率 | 已下载 | 用途 | 状态 |
 |----|----------------|----------|------|--------|------|------|
-| S1 | [交通车速、车流及道路占用率（原始数据）](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads)，`rawSpeedVol-all.xml`（运输署） | 历史存档（`hkdata.download`） | 30 秒时段，每分钟发布 | 2024-01 至 2025-12（存档自 2021 年 6 月起；2021 年 11 月前只有 42 个探测器） | 目标变量 | **必需**；已下载；已解析（旧流程，362 个选定日） |
+| S1 | [交通车速、车流及道路占用率（原始数据）](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads)，`rawSpeedVol-all.xml`（运输署） | 历史存档（`hkdata.download`） | 30 秒时段，每分钟发布 | 2024-01 至 2025-12（存档自 2021 年 6 月起；2021 年 11 月前只有 42 个探测器） | 目标变量 | **必需**；已下载 |
 | S2 | [交通探测器位置](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv)，CSV（运输署） | 历史存档（`hkdata.download`、`src.download static-history`） | 按版本 | 8 个版本，2021-08 至 2026-04 | 探测器属性、空间关联 | **必需**；已下载 |
-| S3 | [现时天气报告](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report)，`CurrentWeather.xml`（天文台） | 历史存档（`hkdata.download`） | 每小时 | 2024-01 至 2025-12（存档自 2021 年 6 月起） | **分区**过去一小时雨量 | **必需**；已下载；已解析（旧流程，362 个选定日） |
+| S3 | [现时天气报告](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report)，`CurrentWeather.xml`（天文台） | 历史存档（`hkdata.download`） | 每小时 | 2024-01 至 2025-12（存档自 2021 年 6 月起） | **分区**过去一小时雨量 | **必需**；已下载 |
 | S4 | [暴雨警告信号数据库](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml)，`rstorm.dat`（天文台） | 直接下载（`src.download warnings`） | 每次事件 | 1998 年 3 月至今 | 每个时刻的警告状态 | **必需**；已下载；已解析 |
 | S5 | [热带气旋警告信号数据库](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml)，`tc.dat`（天文台） | 直接下载（`src.download warnings`） | 每次事件 | 1946 年至今 | 排除台风时段 | **必需**；已下载；已解析 |
 | S6 | [香港公众假期](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal)，`en.json`（1823） | 直接下载 + 历史存档（`src.download holidays`） | 每年 | 各存档版本合起来覆盖 2018–2027 | 工作日 / 周末 / 假期 | **必需**；已下载；已解析 |
@@ -52,90 +52,13 @@
 
 ---
 
-## 3. 处理后的数据库结构
+## 3. 表
 
-每个处理后的 Parquet 文件在结构元数据（键 `hkrt`）里存一条 JSON 记录，包括表名、生成它的**代码版本**、日期和解析统计。
-用 `src.storage.read_meta(path)` 读取。过时的文件会被处理流程重建，并被 `src.validate` 标出
-（见 [`processing.zh.md`](processing.zh.md) 的版本规则一节）。
+**处理后的表：将随新流程重新设计。** 之前的表（`traffic_lane`、`traffic_15min`、`rainfall_district`，
+规划中的 `detectors`、`rainfall_grid` 和 `calendar`，以及 `coverage` 日志和数据检查报告）已于 2026-09-29
+连同生成它们的代码一起删除；它们的定义在该日期之前的 git 历史里。
 
-表存为 Parquet（大表，按天分文件）或 CSV（小表）。PK = 主键。
-
-### `traffic_lane`：清洗前的事实表（来自 S1）
-
-`data/processed/traffic_lane/<YYYY>/<YYYYMMDD>.parquet`（每个存档日一个文件），每天约 360 万行、约 11 MB。
-由 `src/parse/traffic.py` 经 `python -m src.pipeline` 生成；用 `src.data.load_traffic_lane` 读取。
-
-| 列 | 类型 | PK | 说明 |
-|----|------|----|------|
-| `time` | 时间戳 | ✓ | 时段开始（`date` + `period_from`） |
-| `detector_id` | 分类 | ✓ | 外键 → `detectors` |
-| `lane` | 分类 | ✓ | 来自 `lane_id` 的车道标签 |
-| `speed` | int16 | | km/h，原样保留 |
-| `occupancy` | int16 | | %，原样保留 |
-| `volume` | int16 | | 辆 / 30 秒 |
-| `sd` | float32 | | 车速标准差；约 2021 年 11 月 18 日之前缺失 |
-| `valid` | 分类 | | `Y`/`N`，原样保留 |
-
-这一步只删除完全重复的行。其他清洗选择（无效行、零车流时的车速、离群值、缺口）之后作为 `PROPOSAL.md`
-里的实验变量 P1–P6 再处理。`direction` 和 `period_to` 被丢弃，因为 S2 和 `time` + 30 秒已经提供了它们。
-
-### `traffic_15min`：探测器 × 15 分钟表（来自 `traffic_lane`）
-
-`data/processed/traffic_15min/<YYYY>/<YYYYMMDD>.parquet`，由 `python -m src.aggregate` 生成。每天约 7.4 万行、约 0.9 MB。
-
-| 列 | 类型 | PK | 说明 |
-|----|------|----|------|
-| `detector_id` | 分类 | ✓ | |
-| `t_bin` | 时间戳 | ✓ | 15 分钟时段的开始 |
-| `n_readings` | int32 | | 时段内的车道读数条数 |
-| `n_periods` | int32 | | 不同的 30 秒时段数（最多 30） |
-| `n_invalid`、`n_zero_volume`、`n_speed_over_130` | int32 | | 质量计数 |
-| `speed_naive` | float32 | | 所有读数的简单平均 |
-| `speed_clean` | float32 | | `valid == 'Y'` 且 `volume > 0` 的读数按车流加权平均 |
-| `volume_sum` | float32 | | 车辆数，只算有效读数 |
-| `occupancy_mean` | float32 | | %，只算有效读数 |
-
-### `detectors`：维度表（来自 S2）
-
-| 列 | 类型 | PK | 说明 |
-|----|------|----|------|
-| `detector_id` | 字符串 | ✓ | 来自 `AID_ID_Number` |
-| `district` | 字符串 | | 统一成 18 区的标准名称（见第 5 节） |
-| `road_en`、`road_tc` | 字符串 | | 位置描述 |
-| `latitude`、`longitude` | 浮点 | | WGS84 |
-| `easting`、`northing` | 浮点 | | 香港 1980 方格网（米） |
-| `direction`、`rotation` | 字符串、整数 | | 行车方向 |
-| `n_lanes` | 整数 | | 从 `traffic_lane` 推出 |
-| `road_type` | 字符串 | | 之后推出，例如快速公路 / 主干道 / 市区道路（问题 2 的特征） |
-
-### `rainfall_district`：事实表（来自 S3）
-
-`data/processed/rainfall_district/<YYYY>/<YYYYMMDD>.parquet`，每份公告 × 18 区各一行。
-由 `src/parse/weather.py` 生成；用 `src.data.load_rainfall_district` 读取。
-
-| 列 | 类型 | PK | 说明 |
-|----|------|----|------|
-| `period_end` | 时间戳 | ✓ | 1 小时累计时段的结束，例如 07:45 |
-| `district` | 分类 | ✓ | 18 区标准名称（运输署写法，见第 5 节） |
-| `period_start` | 时间戳 | | `period_end` − 1 小时 |
-| `rain_min_mm` | float32 | | 区内最低的雨量站读数（没列出则为 0） |
-| `rain_max_mm` | float32 | | 区内最高的雨量站读数（没列出则为 0） |
-| `bulletin_time` | 时间戳 | | 公告发布时间（取自标题，不是存档时间） |
-| `listed` | 布尔 | | 该区出现在雨量那句话里 |
-| `section_present` | 布尔 | | 公告里有没有雨量那句话 |
-
-在有雨量那句话的公告里没列出的区，就是没下雨。没有那句话的公告表示全港都没下雨，
-其时段推定为 `bulletin_time` 前至少 15 分钟的最后一个 HH:45。
-
-### `rainfall_grid`：可选事实表（来自 S7）
-
-| 列 | 类型 | PK | 说明 |
-|----|------|----|------|
-| `issue_time` | 时间戳 | ✓ | 临近预报发布时间 |
-| `cell_id` | 整数 | ✓ | 网格单元（经纬度索引） |
-| `rain_30min_mm` | 浮点 | | 只取第一个预报时效 |
-
-另有 `detector_cell`（`detector_id` → 最近的 `cell_id` 及距离），只保留探测器附近的网格单元。
+除原始文件外，硬盘上现有的是 `src.download` 生成的几张小表（怎样生成见 [`processing.zh.md`](processing.zh.md)）。PK = 主键。
 
 ### `rainstorm_warnings`：事件表（来自 S4）
 
@@ -175,31 +98,16 @@
 | `date` | 日期 | ✓ | |
 | `name` | 字符串 | | |
 
-### `calendar`：推导出的维度表
-
-每个日期一行：`date`（PK）、`weekday`、`is_weekend`、`is_holiday`、
-`day_type`（`workday` / `saturday` / `sunday_holiday`）、`has_rainstorm_warning`、
-`has_tc_signal`、`manifest_role`（`event` / `control` / 无）。
-
-### `coverage`：处理流程日志
-
-`data/processed/coverage.csv`，每个（`source`，`date`）一行：`status`（`ok` / `no_data` / `failed`）、
-`version`、`n_snapshots`、`n_rows_raw`、`n_rows`、`n_periods`、`n_detectors`、`has_sd`、`n_periods_redated`、`n_truncated_files`（交通）、
-`n_bulletins`、`n_with_rain_section`、`max_rain_mm`（天气）、`error`。
-
-### `validation_report.md` / `validation_checks.csv`：数据检查
-
-在 `data/processed/`，由 `python -m src.validate` 写出（每次 `src.pipeline` 运行后也会写）。
-CSV 每个检查一行：`table`、`day`、`name`、`level`（`FAIL` / `WARN` / `INFO` / `OK`）、`value`、`detail`。
-Markdown 报告另外给每张表做概况统计（NA、不同值的个数、最常见的值）。见 [`processing.zh.md`](processing.zh.md) 的检查一节。
-
-### `day_manifest`：下载计划（已有）
+### `day_manifest`：选出的日子（来自 `select-days`）
 
 `data/interim/day_manifest.csv`：`date`、`role`（`event` / `control`）、`episode_ids`、`max_level`、`max_level_name`。
+新流程不使用；保留给之后的分析。
 
 ---
 
 ## 4. 表之间的关系
+
+之前的设计，将随新流程重新确定：
 
 ```
                          calendar (date) ◀──── public_holidays (date)
@@ -222,6 +130,8 @@ traffic_lane ──detector_id──▶ detectors ──district──▶ rainfa
 
 ## 5. 已知数据问题
 
+"处理方式"是之前的流程的做法；新流程会重新决定。
+
 | 来源 | 问题 | 处理方式 |
 |------|------|----------|
 | S1 | 探测器网络在扩大：42 个（2021 年 7 月）、554 个（2021 年 12 月）、约 680 个（2023 年）、770 个（2025 年） | 研究年份 2022–2025；每个探测器单独建基线 |
@@ -243,16 +153,3 @@ traffic_lane ──detector_id──▶ detectors ──district──▶ rainfa
 | S3 | 存档时间 ≠ 公告时间（20:02 存档的文件里是 19:02 的公告）；有些公告很晚才发（01:46） | 用公告自己的时间戳，以它为准确定时段 |
 | S6 | 每个文件只覆盖 3 年 | 合并各存档版本，按日期去重 |
 | S7 | 是预报，不是观测；约 2022 年 7 月起才有 | 只作可选的敏感性检查 |
-
----
-
-## 6. 数据量
-
-| 范围 | 天数 | S1 ZIP（下载） | `traffic_lane` Parquet | S3 |
-|------|------|----------------|------------------------|----|
-| 1 天 | 1 | 31 MB | 10 MB | 50 kB |
-| 红雨及以上事件 + 对照日，2022–2025 | 59 | 约 1.8 GB | 约 0.7 GB | 约 3 MB |
-| 黄雨及以上事件 + 对照日，2022–2025 | 298 | 约 9.2 GB | 约 3.3 GB | 约 15 MB |
-| 全部存档（2021 年 6 月 – 2026 年 9 月） | 约 1,950 | 约 64 GB | 约 21 GB | 约 0.1 GB |
-
-处理流程把每天的 ZIP 转成 Parquet 后就删除 ZIP，所以硬盘占用大致等于 Parquet 那一列。
