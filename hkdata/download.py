@@ -44,6 +44,9 @@ How get-data-dictionary / get-schema answered `date` (tested 2026-09):
                  it) -> .../data-dictionary/2022/12/20211118-dataspec-...pdf
         20240229 (CurrentWeather.xml) -> .../data-dictionary/2024/02/
                  HKO_Open_Data_API_Documentation-20240229.pdf
+    That left speed_segments_info.csv (dates 2023-09) with none, so its entry
+    has 20211118 (the edition the broken link's file name names) and 20240418
+    added by hand.
 
 How get-file answered `time` (tested 2026-09 on CurrentWeather.xml):
     20250701 (1st of a past month)   -> 302 to that month's bundle (period M)
