@@ -1,0 +1,37 @@
+[
+  {
+    "url": "https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol-all.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ]
+  },
+  {
+    "url": "https://rss.weather.gov.hk/rss/CurrentWeather.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ]
+  },
+  {
+    "url": "https://www.td.gov.hk/en/special_news/trafficnews.xml",
+    "range": [
+      "2024-01",
+      "2025-12"
+    ]
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv",
+    "dates": [
+      "2022-03",
+      "2024-02",
+      "2025-10"
+    ]
+  },
+  {
+    "url": "https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv",
+    "dates": [
+      "2023-09"
+    ]
+  }
+]
