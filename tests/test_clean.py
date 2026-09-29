@@ -64,6 +64,31 @@ def test_extract_raises_on_conflicting_member(tmp_path):
         extract(bundle, tmp_path / "out")
 
 
+S1_XML = (b'<?xml version="1.0" encoding="utf-8"?><raw_speed_volume_list><date>2025-08-05</date><periods>'
+          b'<period><period_from>08:00:00</period_from><period_to>08:00:30</period_to><detectors>'
+          b'<detector><detector_id>AID01101</detector_id><direction>South East</direction><lanes>'
+          b'<lane><lane_id>Fast Lane</lane_id><speed>70</speed><occupancy>0</occupancy><volume>0</volume>'
+          b'<s.d.>0</s.d.><valid>Y</valid></lane>'
+          b'<lane><lane_id>Slow Lane</lane_id><speed>52</speed><occupancy/><volume>2</volume><valid>N</valid></lane>'
+          b'</lanes></detector></detectors></period></periods></raw_speed_volume_list>')
+
+
+def test_s1_parse_keeps_text_absent_and_empty():
+    from src.clean.s1_parse import parse
+    assert parse(S1_XML, "t") == [
+        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", "Fast Lane", "70", "0", "0", "0", "Y"),
+        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", "Slow Lane", "52", "", "2", None, "N"),
+    ]
+
+
+def test_s1_parse_raises_on_unknown_or_repeated_element():
+    from src.clean.s1_parse import parse
+    with pytest.raises(ValueError, match="unexpected <flow>"):
+        parse(S1_XML.replace(b"<valid>N</valid>", b"<valid>N</valid><flow>1</flow>"), "t")
+    with pytest.raises(ValueError, match="<speed> twice"):
+        parse(S1_XML.replace(b"<speed>52</speed>", b"<speed>52</speed><speed>53</speed>"), "t")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):
