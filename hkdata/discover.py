@@ -25,7 +25,8 @@ Reference, not a lookup:
 
 Typical chain: search-datasets -> take a dataset `id` -> dataset -> take a
 resource `url` -> coverage. The CLI's `coverage --dataset ID` does the last
-two steps for every resource of a dataset.
+two steps for every resource of a dataset. To download what coverage shows,
+write a plan for hkdata.download.
 
 Note on search_files: it wraps the Historical Archive File List API that
 DATA.GOV.HK publishes for developers; I find it awkward to use.
@@ -82,13 +83,17 @@ _BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json",
                     "Referer": "https://data.gov.hk/en-datasets"}
 
 
-def _get(url: str, params: dict, headers: dict | None = None) -> dict:
-    resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
+def _check(resp: requests.Response) -> requests.Response:
+    """raise_for_status, with the response body added to the error message."""
     try:
         resp.raise_for_status()
     except requests.HTTPError as exc:
         raise requests.HTTPError(f"{exc}\nresponse body:\n{resp.text}", response=resp) from exc
-    return resp.json()
+    return resp
+
+
+def _get(url: str, params: dict, headers: dict | None = None) -> dict:
+    return _check(requests.get(url, params=params, headers=headers, timeout=TIMEOUT)).json()
 
 
 def _yesterday() -> date:
