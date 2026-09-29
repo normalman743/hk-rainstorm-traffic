@@ -18,6 +18,7 @@ Output, in data/interim/checks/:
 from __future__ import annotations
 
 import duckdb
+from tqdm import tqdm
 
 from src.clean.s1_parse import OUT_DIR as L1_DIR
 from src.clean.s1_periods import OUT_DIR as CHECKS_DIR
@@ -25,6 +26,8 @@ from src.clean.s1_periods import OUT_DIR as CHECKS_DIR
 COLUMNS = ["date", "period_from", "period_to", "detector_id", "direction",
            "lane_id", "speed", "occupancy", "volume", "sd", "valid"]
 KEY = "date, period_from, detector_id, lane_id"
+BUCKETS = 16
+MEMORY_LIMIT = "6GB"
 VALUES = "period_to, direction, speed, occupancy, volume, sd, valid"
 # column -> DuckDB check that is TRUE for a well-formed non-null value
 FORMATS = {
@@ -41,6 +44,7 @@ FORMATS = {
 def main() -> None:
     con = duckdb.connect()
     con.execute(f"SET temp_directory = '{L1_DIR.parent / 'duckdb_tmp'}'")
+    con.execute(f"SET memory_limit = '{MEMORY_LIMIT}'")
     con.execute(f"""CREATE VIEW l1 AS SELECT *, substr(bundle, 1, 6) AS month
                     FROM read_parquet('{L1_DIR}/*.parquet')""")
     summary = []
@@ -48,7 +52,13 @@ def main() -> None:
     # rows and repeated keys: first find the keys (count only), then compare their rows
     for month, rows in con.execute("SELECT month, count(*) FROM l1 GROUP BY month ORDER BY month").fetchall():
         summary.append((month, "rows", rows))
-    con.execute(f"CREATE TABLE rk AS SELECT month, {KEY} FROM l1 GROUP BY month, {KEY} HAVING count(*) > 1")
+    # One GROUP BY over all keys needs a hash table of ~all rows and spills many GB to disk,
+    # so the keys are split into BUCKETS by a hash of the key: a key always falls in one bucket.
+    con.execute(f"CREATE TABLE rk AS SELECT month, {KEY} FROM l1 LIMIT 0")
+    for b in tqdm(range(BUCKETS), desc="repeated keys (buckets)"):
+        con.execute(f"""INSERT INTO rk SELECT month, {KEY} FROM l1
+                        WHERE hash({KEY}) % {BUCKETS} = {b}
+                        GROUP BY month, {KEY} HAVING count(*) > 1""")
     con.execute(f"CREATE TABLE rows_ AS SELECT * FROM l1 SEMI JOIN rk USING (month, {KEY})")
     con.execute(f"""
         CREATE TABLE repeated AS
