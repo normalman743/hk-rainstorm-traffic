@@ -392,8 +392,9 @@ def output_path(out: Path, task: dict) -> Path:
     return base / "day" / f"{task['day']}.zip" if task["day"] else base / "bundle" / f"{task['time']}.zip"
 
 
-def _download_bundle(task: dict, tmp: Path, progress: bool = True) -> str:
-    """`progress` False: no per-file bar (several bundles downloading at once)."""
+def _download_bundle(task: dict, tmp: Path, progress: bool = True, on_bytes=None) -> str:
+    """`progress` False: no per-file bar (several bundles downloading at once).
+    `on_bytes(n)`, if given, is called for every chunk written."""
     resp = _check(_session().get(f"{ARCHIVE_API}/get-file", params={"url": task["url"], "time": task["time"]},
                                  stream=True, timeout=TIMEOUT))
     total = int(resp.headers["Content-Length"]) if "Content-Length" in resp.headers else None
@@ -402,6 +403,8 @@ def _download_bundle(task: dict, tmp: Path, progress: bool = True) -> str:
         for chunk in resp.iter_content(chunk_size=1 << 20):
             f.write(chunk)
             bar.update(len(chunk))
+            if on_bytes is not None:
+                on_bytes(len(chunk))
     if total is not None and tmp.stat().st_size != total:
         raise OSError(f"got {tmp.stat().st_size} bytes, Content-Length said {total}")
     return f"bundle {_mb(tmp.stat().st_size)}"
@@ -432,16 +435,17 @@ def _download_day(task: dict, tmp: Path, workers: int | None) -> str:
     return f"{len(members)} files from bundle time={task['time']} ({workers} workers), {_mb(tmp.stat().st_size)}"
 
 
-def _run_one(t: dict, out: Path, workers: int | None, overwrite: bool, progress: bool) -> tuple:
+def _run_one(t: dict, out: Path, workers: int | None, overwrite: bool, progress: bool, on_bytes=None) -> tuple:
     """Download one task. Returns ("skip", path, None) | ("ok", path, what was done)
-    | ("error", full message, short message); never raises for the task's own failures."""
+    | ("error", full message, short message); never raises for the task's own failures.
+    `on_bytes`: see _download_bundle (whole bundles only)."""
     path = output_path(out, t)
     if path.exists() and not overwrite:
         return "skip", path, None
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".part")
     try:
-        done = _download_bundle(t, tmp, progress) if t["day"] is None else _download_day(t, tmp, workers)
+        done = _download_bundle(t, tmp, progress, on_bytes) if t["day"] is None else _download_day(t, tmp, workers)
     except Exception as exc:  # noqa: BLE001 -- one failed task must not stop the rest; reported by run()
         # the archive's own errors carry its response; anything else keeps its traceback
         msg = str(exc) if isinstance(exc, (requests.RequestException, LookupError)) else traceback.format_exc()
@@ -470,42 +474,72 @@ def run(all_tasks: list[dict], out: Path, workers: int | None = None, overwrite:
     bundles >= 100 MB or of unknown size, and "YYYY-MM-DD" days (which already
     run their own parallel Range requests). Without `sizes`, all one at a time.
 
-    Progress: the top bar counts tasks (ETA from the task rate) with the bytes
-    written so far; below it, a one-at-a-time task's bytes or files."""
+    Progress: the top bar counts bytes against the sizes from `sizes` (ETA from
+    the recent speed), with tasks finished / failed; below it, a one-at-a-time
+    task's bytes or files."""
     numbered = list(enumerate(all_tasks, 1))
     groups: dict[int, list] = {}
     for i, t in numbered:
         n = _parallel(sizes.get(id(t))) if sizes is not None and t["day"] is None else 1
         groups.setdefault(n, []).append((i, t))
 
-    errors, written = [], 0
-    overall = tqdm(total=len(all_tasks), unit="task", desc="total", position=0)
+    # The top bar counts bytes: its total is the known sizes of the bundles to download,
+    # advanced as each chunk arrives, so its rate and ETA follow the recent download speed.
+    # Tasks of unknown size ("YYYY-MM-DD" days, bundles coverage had no size for) join the
+    # total only once finished, with their file size, so they don't distort the ETA.
+    known = {id(t): sizes[id(t)] for t in all_tasks
+             if sizes is not None and t["day"] is None and sizes.get(id(t)) is not None}
+    lock = threading.Lock()
+    overall = tqdm(total=sum(known.values()), unit="B", unit_scale=True, desc="total", position=0)
+    errors, finished = [], 0
 
-    def report(i: int, t: dict, result: tuple) -> None:
-        nonlocal written
+    def advance(n: int) -> None:
+        with lock:
+            overall.update(n)
+
+    def run_task(t: dict, progress: bool) -> tuple:
+        """_run_one, plus how many bytes it advanced the top bar by."""
+        if id(t) not in known:
+            return _run_one(t, out, workers, overwrite, progress), 0
+        counted = [0]
+
+        def on_bytes(n: int) -> None:
+            counted[0] += n
+            advance(n)
+        return _run_one(t, out, workers, overwrite, progress, on_bytes), counted[0]
+
+    def report(i: int, t: dict, result: tuple, counted: int) -> None:
+        nonlocal finished
         status, a, b = result
         head = f"[{i}/{len(all_tasks)}] {t['url']} {t['item']}"
-        if status == "skip":
-            tqdm.write(f"{head} | skip, exists: {a}")
-        elif status == "error":
-            tqdm.write(f"{head} | error:\n{a}")
-            errors.append((t, b))
-        else:
-            written += a.stat().st_size
-            tqdm.write(f"{head} | {b} -> {a}")
-        overall.set_postfix_str(f"{_mb(written)} written, {len(errors)} failed")
-        overall.update()
+        with lock:
+            if status == "skip":
+                tqdm.write(f"{head} | skip, exists: {a}")
+                overall.total -= known.get(id(t), 0)
+            elif status == "error":
+                tqdm.write(f"{head} | error:\n{a}")
+                errors.append((t, b))
+                overall.total -= known.get(id(t), 0)
+                overall.update(-counted)
+            else:
+                tqdm.write(f"{head} | {b} -> {a}")
+                if id(t) not in known:
+                    size = a.stat().st_size
+                    overall.total += size
+                    overall.update(size)
+            finished += 1
+            overall.set_postfix_str(f"{finished}/{len(all_tasks)} tasks, {len(errors)} failed")
 
     for n in sorted(groups, reverse=True):  # most parallel (= smallest) first; 1 last
         if n == 1:
             for i, t in groups[n]:
-                report(i, t, _run_one(t, out, workers, overwrite, progress=True))
+                report(i, t, *run_task(t, progress=True))
             continue
         tqdm.write(f"-- {len(groups[n])} bundle(s), {n} at a time")
         with ThreadPoolExecutor(max_workers=n) as pool:
-            futures = {pool.submit(_run_one, t, out, workers, overwrite, False): (i, t) for i, t in groups[n]}
+            futures = {pool.submit(run_task, t, False): (i, t) for i, t in groups[n]}
             for fut in as_completed(futures):
-                report(*futures[fut], fut.result())
+                report(*futures[fut], *fut.result())
     overall.close()
     print(f"{len(all_tasks)} request(s), {len(errors)} failed")
     for t, short in errors:
