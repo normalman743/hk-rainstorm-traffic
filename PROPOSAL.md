@@ -1,135 +1,142 @@
 # Project Proposal: Rainstorm-Sensitive Roads in Hong Kong
 
-**Working title:** Which Hong Kong roads are most sensitive to rainstorms? A data preprocessing and integration study using HKO and Transport Department open data.
+**Title:** Which Hong Kong roads are most sensitive to rainstorms? A preprocessing and
+integration study of Transport Department detector data, HKO rainfall and warning signals.
 
-## 1. Motivation
+Rewritten on 2026-10-01 from the first full run of the pipeline (three months, all main
+sources). The previous version is in git history; numbers below come from
+`report/results/*.json` and `docs/cleaning.md`.
 
-Heavy rain is a recurring disruption in Hong Kong. The Observatory's Black
-Rainstorm warning text itself warns that "persistent rainstorm will cause serious road
-flooding and traffic congestion". In 2025 Hong Kong had four Black Rainstorm
-episodes, the first time this happened in one year under the current warning system.
+## 1. Problem and why it matters
 
-Commuters and traffic managers are not asking *whether* rain slows traffic.
-That is well established. They want to know **where** the impact is worst and
-**whether it can be anticipated**. Both questions depend on joining two
-messy, independently collected data sources: minute-level road detectors and
-hourly regional rainfall. How that join and the cleaning around it are done
-is the core subject of this project.
+Heavy rain is a recurring disruption in Hong Kong; 2025 had four Black Rainstorm episodes, the
+first time under the current warning system. That rain slows traffic is known. What a traffic
+manager or a commuter needs is **where** the effect is worst and **whether it can be
+anticipated**. Both answers depend on joining data that were never designed to be joined:
+30-second lane readings from ~790 road detectors, an hourly rainfall *range* per district
+published inside a weather bulletin, and warning signals issued for the whole territory. How
+that join and the cleaning around it are done is the subject of the project, as the course
+asks: we measure how each preprocessing choice changes the answers.
 
-## 2. Related work
+## 2. Data (three months: 2024-05, 2025-07, 2025-08)
 
-- **Rain vs. travel speed (single road).** A 2021 review in *ISPRS IJGI*
-  ([doi:10.3390/ijgi10080557](https://doi.org/10.3390/ijgi10080557)) reports that
-  on one Hong Kong urban road, light, moderate and heavy rain reduced speed by
-  roughly 4.21%, 6.28% and 7.31%.
-- **Rain vs. city-level congestion.** A 2026 study in *Frontiers in Sustainable
-  Cities* ([link](https://www.frontiersin.org/journals/sustainable-cities/articles/10.3389/frsc.2026.1871487/full))
-  models the nonlinear relation between daily rainfall, a city-wide congestion
-  index and metro ridership in Guangzhou and Shenzhen.
-- **2025 Black Rainstorms.** [arXiv:2508.07600](https://arxiv.org/pdf/2508.07600)
-  analyses the meteorology of the four 2025 Black Rainstorm episodes.
+| ID | Source | Resolution | Used for |
+|----|--------|-----------|----------|
+| S1 | TD raw detector readings (speed, volume, occupancy, s.d., valid) | 30 s × lane, 784 detectors, 332.9 M readings | traffic |
+| S2 | TD detector locations | per detector | district, lat/lon |
+| S3 | HKO Current Weather Report: past-hour rainfall range per district | hourly × 18 districts | local rain |
+| S4 | HKO rainstorm warning signals | per signal | Amber / Red / Black |
+| S5 | HKO tropical cyclone signals | per signal | confounder (signal ≥ 8 left out) |
+| S6 | Public holidays | per date | day type |
+| S8 | HKO daily rainfall | per day | checks |
 
-**Gap we address:** prior work uses either a single road or a daily,
-city-aggregated index. We work at **detector level (~800 locations, whole
-territory)**, at **sub-hourly resolution**, conditioned on **official warning
-levels**. We also make the preprocessing pipeline itself the object of study.
-Novelty in the rain-slows-traffic finding is *not* claimed.
+The three months hold 41 Amber (76 h), 18 Red (28 h) and 5 Black (21 h) signals, including all
+four 2025 Black episodes, and Typhoon Wipha (signal 10). Optional sources (radar nowcast,
+segment speeds, traffic news, road network) are downloaded but set aside for now.
+
+**What the raw data are like** (details in `docs/raw_data.md`): the archive stored a copy of
+the live file each time it fetched it, so 27–47 % of the 30-s periods are absent, identical
+copies are stored several times, midnight periods carry yesterday's date and three files are
+truncated. With volume 0 the reported speed is the speed limit, not a measurement (20 % of
+readings). `valid = N` readings (2.9 %) look normal. Speed 0 with volume > 0 is physically
+impossible (0.17 %). District rainfall is a range, and a district without rain is not listed.
 
 ## 3. Research questions
 
-- **RQ1 – Sensitivity ranking.** For each detector, how much do speed and
-  occupancy deviate from their own normal level (same weekday type and time of day) during
-  Amber / Red / Black periods? Which roads or districts are most sensitive?
-- **RQ2 – Prediction.** Given road attributes (district, road type, direction,
-  lanes, baseline speed) and rainfall features (current / lagged district
-  rainfall, warning level, time since warning issued), can we predict
-  15-minute congestion during rainstorms better than a time-only baseline?
-- **RQ3 – Preprocessing impact (primary course focus).** How sensitive are
-  RQ1 rankings and RQ2 accuracy to each preprocessing choice listed in §5?
+- **RQ1 – Sensitivity.** Which detectors and districts lose most speed, relative to their own
+  dry-weather normal, under rainstorms, and is this a stable property of the road or an effect
+  of how much rain fell there?
+- **RQ2 – Prediction.** Can rain, warning and road features predict the 15-min speed ratio in
+  unseen storms better than a time-only baseline? Which information helps: local rain or the
+  warning level?
+- **RQ3 – Preprocessing impact (course focus).** How much does each preprocessing choice change
+  the RQ1 ranking and the RQ2 accuracy?
 
-## 4. Data
+## 4. Pipeline and method
 
-| Source | Content | Resolution | Coverage used |
-|--------|---------|-----------|---------------|
-| TD *Traffic Data of Strategic / Major Roads*: `rawSpeedVol-all.xml` | Per-lane speed, volume, occupancy, `valid` flag, s.d. | 30 s, ~800 detectors | Rainy seasons (Apr–Sep) 2022–2025, plus dry-month controls |
-| TD detector location CSV | Detector ID, road, district, lat/lon, direction | Static | All |
-| HKO *Current Weather Report*: `CurrentWeather.xml` | Past-hour rainfall **range (min–max mm) per district** | Hourly | Same period |
-| HKO Rainstorm Warning Signals Database | Amber / Red / Black issue and cancel times | Event | 2021–2025 |
-| HKO daily rainfall (`daily_HKO_RF_ALL.csv`) | Daily rainfall totals | Daily | Sanity checks / day labelling |
+Three layers, all Parquet, processed with DuckDB (`src/clean`, `src/l3.py`, `src/analysis`):
 
-All sources and download commands are listed in [`README.md`](README.md#data-sources).
+- **L1** parses every file as written (strings, nothing dropped), with structure checks.
+- **L2** cleans each source by explicit rules D1–D22, each with evidence, decider and counts
+  (`docs/cleaning.md`). Principles agreed with the course teacher: fail loudly on anything no
+  rule covers; leave no NA — estimate a few missing values with good neighbours (interpolation,
+  ratio), average a value given twice, drop rare bad data in a large source after checking
+  that the drop does not cluster in rain periods; flag everything estimated.
+- **L3** is one row per detector × 15-min slot (6.43 M rows): volume-weighted speed, flow,
+  occupancy; the district's rain (midpoint of the range), the rain of the hour before and the
+  territory maximum; warning level and minutes since the warning episode began; cyclone signal;
+  day type. The target is the **speed ratio** to the detector's median speed in dry slots of
+  the same season, day type and time of day. Each step (P1–P11) has a default and alternatives.
 
-**Feasibility check (done):** the DATA.GOV.HK Historical Archive API serves
-both the raw detector file and the HKO current-weather RSS back to at least
-June 2021. Snapshots for the 5 Aug 2025 Black Rainstorm were retrieved
-successfully. We do **not** depend on live collection this season.
+| Step | Default | Alternatives (RQ3) |
+|------|---------|--------------------|
+| P1 validity | drop `valid = N` readings | keep; drop the whole detector period |
+| P2 outliers | drop speed 0 or > 130 with volume > 0 | none; + robust z per lane |
+| P3 stuck sensors | drop identical lane slots ≥ 30 min | keep |
+| P4 lane → detector | volume-weighted speed | mean of all readings; slowest lane |
+| P5 time slot | 15 min | 5 min; 60 min |
+| P6 gaps | interpolate 1–2 missing slots | none |
+| P7 rain → road | own district, midpoint | upper bound; territory maximum |
+| P8 rain alignment | the hour the slot is in | the hour before |
+| P9 warning encoding | level 0–3 + minutes since issue | any / none; no warning features |
+| P10 baseline | dry median per season × day type × slot | per month; all months |
+| P11 confounders | leave out cyclone signal ≥ 8 | keep |
 
-**Known limitations**
-- District rainfall is given as a *range* over several gauges, not a point value.
-- Station-level hourly AWS rainfall (`hourlyRainfall.php`) is not archived, so it is used only as an optional live supplement.
-- Detectors cover strategic / major roads only. Local streets are out of scope.
-- The raw archive is about 1 GB zipped per month, so we must parse data by streaming it, not by loading it all into memory.
+**RQ1:** per detector, median speed ratio under Red/Black − 1 (`s_warn`), under district rain
+≥ 10 mm/h (`s_rain`), an exposure-adjusted `s_warn`, and a mixed-model rain slope; stability
+by split-half over rain events. **RQ2:** 42 event days (22 events), five folds grouped by
+event; baseline ratio = 1; ridge / logistic regression and LightGBM with four feature sets;
+MAE and F1 of congestion (ratio < 0.7). **RQ3:** one alternative at a time; Spearman of the
+ranking with the default, top-20 overlap, headline ratios, and LightGBM skill (1 − MAE / MAE of
+the baseline, because the target changes with the variant).
 
-## 5. Preprocessing pipeline and controlled experiments
+## 5. Preliminary results (first full run, 2026-10-01)
 
-Each step has a **default** and one or more **alternatives**. RQ3 varies one
-step at a time while the other steps stay at their defaults, then records
-the change in RQ1 (Spearman correlation of sensitivity rankings and top-20
-overlap) and RQ2 (MAE / F1 of the congestion class).
+- **Speed follows the local rain; the warning level mostly changes demand.** Median speed ratio
+  falls from 0.976 (0–5 mm/h) to 0.888 (> 40 mm/h) without a warning. By level: Amber 0.940,
+  Red 0.918, **Black 0.937**. Under Black the flow is 0.62 of normal in every rain bin, even
+  where the district had no rain (speed there 1.007): a "Black paradox" of fewer, faster cars.
+- **5 August 2025:** speed ratio 0.77 ten minutes after the Black signal, flow down to 0.38 by
+  09:00, speed back to 1.0 by 16:00 while Black was still in force.
+- **RQ1:** the ranking is stable across storms (split-half Spearman 0.84 / 0.90) but
+  correlates −0.51 with the rain the district received under Red/Black. After adjusting for
+  that exposure, the Kowloon urban corridors (Tseung Kwan O Road, Kwun Tong Bypass, Lung
+  Cheung Road, West Kowloon Corridor, Lion Rock Tunnel Road) remain the most sensitive; North
+  District moves up, the Islands move down.
+- **RQ2:** LightGBM cuts the wet-slot MAE from 0.079 to 0.057 (−28 %; Red/Black −36 %). Rain
+  features alone reach 0.057, warning features alone 0.067. Congestion (1–4 % of slots) stays
+  hard: F1 0.14–0.17.
+- **RQ3 (18 alternatives, one at a time; noise floor about 0.005 in skill):**
+  - *Speed aggregation (P4) matters most for the ranking:* mean of all readings or slowest
+    lane keeps only 11 of the top 20 (Spearman 0.91). The mean lets empty-lane readings (speed
+    = the posted limit) dilute every ratio (Black 0.961 instead of 0.937).
+  - *The time slot (P5) changes what can be predicted:* skill 0.215 at 5 min, 0.278 at 15 min,
+    0.378 at 60 min (rain is hourly).
+  - *Rain assignment (P7, P8) matters for prediction:* the territory maximum instead of the own
+    district lowers skill 0.278 → 0.212; the hour before, → 0.233. Removing warning features:
+    0.272.
+  - *A robust outlier rule (P2 + z) removes real congestion:* its 1.73 M extra exclusions are
+    72 % slow readings (median 20 km/h on lanes with median 72) and 1.7 times over-represented
+    under Red/Black; congestion under Red/Black falls 3.9 % → 3.0 %, F1 0.168 → 0.138.
+  - *Validity flag, stuck sensors, gap filling, cyclone filter hardly matter* (Spearman ≥ 0.998,
+    skill within noise). Baseline choice (P10) is in between (16–18 of the top 20).
 
-| Step | Default | Alternatives compared |
-|------|---------|-----------------------|
-| **P1. Validity filtering** | Drop lanes with `valid = N` | Keep all; drop whole detector-period if any lane invalid |
-| **P2. Outlier handling** | Physical bounds (speed 0–130 km/h, occupancy 0–100%) + per-detector robust z-score | Bounds only; IQR; none |
-| **P3. Zero-volume / stuck sensors** | Flag runs of identical readings > 30 min as missing | Treat as genuine; drop detector-day |
-| **P4. Lane → detector aggregation** | Volume-weighted mean speed, summed volume, mean occupancy | Simple mean speed; slowest lane |
-| **P5. Temporal aggregation** | 15 min | 5 min; 60 min (to match rainfall) |
-| **P6. Missing values** | Short gaps (≤ 2 intervals) linearly interpolated, longer left missing | Forward-fill; drop; detector-level seasonal mean |
-| **P7. Rainfall-to-road matching** | Detector's own district, midpoint of range | Upper bound of range; nearest neighbouring district by centroid; territory-wide max |
-| **P8. Rainfall temporal alignment** | Hourly value assigned to the preceding hour's 15-min slots | Forward-fill; linear interpolation; lagged features (t−1 h, t−2 h) |
-| **P9. Warning encoding** | Ordinal level (0 none, 1 Amber, 2 Red, 3 Black) + minutes since issue | One-hot; binary "any warning"; ignore warnings (rain only) |
-| **P10. Baseline / normalisation** | Speed ratio vs. detector's median at same weekday-type × 15-min slot on dry days | Raw speed; z-score; ratio vs. previous-week same slot |
-| **P11. Confounders** | Exclude public holidays and typhoon-signal ≥ 8 periods | Keep them; add as features |
+## 6. Plan to the final report (30 Nov)
 
-## 6. Methods
+| Weeks | Work |
+|-------|------|
+| to 21 Oct | Proposal presentation from this document; review the decisions marked "pending review" in `docs/cleaning.md` |
+| 3–4 | Verify the hypotheses (H1–H10 in the report): per-episode analysis of the Black paradox; speed difference in km/h vs ratio; traffic news (S13) for congested slots and stuck sensors |
+| 5 | Add the optional sources where they answer a hypothesis: radar nowcast (S7) for short bursts, road network (S12/S14) for road class |
+| 6 | Extend to more months if the archive allows (more Black / Red episodes) |
+| 7–8 | Final report (IEEE, ≤ 10 pages), presentation (25 Nov) |
 
-- **RQ1:** Per-detector sensitivity = median speed ratio under each warning level
-  minus 1. We check robustness with a mixed-effects model
-  (`speed_ratio ~ rain + warning + (1 | detector)`) and map the results by district.
-- **RQ2:** Target = 15-min speed ratio (regression) and congested/not (speed
-  ratio < 0.7, classification). Models: time-of-day baseline, linear/logistic
-  regression, gradient boosting (LightGBM). **Split by rainstorm event** (the
-  test events are unseen) to avoid temporal leakage. We report MAE, F1 and
-  feature importance.
-- **RQ3:** Run the one-at-a-time ablation grid from §5 and report sensitivity
-  tables plus a short discussion of which steps matter most.
-
-## 7. Timeline (8 weeks)
-
-| Week | Deliverable |
-|------|-------------|
-| 1 | Archive downloader; warning-event table from HKO DB; select event windows |
-| 2 | Streaming XML parser → Parquet; detector metadata join |
-| 3 | Cleaning steps P1–P4, P6, with data-quality report |
-| 4 | Rainfall parser (district ranges), integration P7–P9 |
-| 5 | EDA; RQ1 sensitivity ranking and maps |
-| 6 | RQ2 models and event-based evaluation |
-| 7 | RQ3 ablation grid |
-| 8 | Report, figures, presentation |
-
-## 8. Risks and mitigation
+## 7. Risks
 
 | Risk | Mitigation |
 |------|------------|
-| Data volume (~1 GB/month zipped) | Download only months that contain warnings plus a few matched dry control weeks; stream-parse to 5-min Parquet |
-| Few Black events (small sample) | Pool Red + Black as "severe"; report per-event results; use Amber events for training volume |
-| Coarse rainfall (district range, hourly) | Treat as an explicit RQ3 variable (P7, P8); note it as a limitation |
-| Detector ID or schema changes across years | Use archived data dictionaries (`data-dictionary-dates` field); keep only detectors present across the period |
-| Congestion caused by incidents, not rain | Robust medians; optional filter using TD special traffic news (future work) |
-
-## 9. Expected outputs
-
-1. A reproducible pipeline (download → clean → integrate → features).
-2. A ranked list and map of rainstorm-sensitive roads.
-3. A rainstorm-period congestion model with an event-held-out evaluation.
-4. An ablation report quantifying how each preprocessing decision changes the conclusions.
+| Four Black episodes only | Pool Red + Black; report per episode; add months |
+| Rain is an hourly district range | Treat it as an RQ3 variable (P7, P8); radar nowcast as a check |
+| 27–47 % of 30-s periods unfetched | Coverage is recorded per slot; missing periods are absent rows, not filled |
+| Congestion from incidents, not rain | Traffic news join (H6); robust medians |
+| Demand change confounds speed | Report flow ratio next to speed ratio throughout |
