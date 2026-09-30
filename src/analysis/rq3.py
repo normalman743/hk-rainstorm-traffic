@@ -135,12 +135,13 @@ def main() -> None:
 def figure(res: pd.DataFrame) -> None:
     lab = [f"{s} {v}" for s, v in zip(res.step, res.variant)]
     fig, axes = plt.subplots(1, 4, figsize=(7, 3.6), sharey=True)
-    for ax, col, title in ((axes[0], "s_warn_spearman", "RQ1 ranking ρ"),
-                           (axes[1], "top20_overlap", f"top-{TOP} overlap"),
-                           (axes[2], "speed_black", "speed ratio, Black"),
-                           (axes[3], "skill_wet", "RQ2 skill (wet)")):
+    for ax, col, title, lim in ((axes[0], "s_warn_spearman", "RQ1 ranking ρ", (0.85, 1.0)),
+                                (axes[1], "top20_overlap", f"top-{TOP} overlap", (0, TOP)),
+                                (axes[2], "speed_black", "speed ratio, Black", (0.9, 1.0)),
+                                (axes[3], "skill_wet", "RQ2 skill (wet)", (0, 0.4))):
         ax.barh(lab, res[col], color=["#888888"] + ["#4c72b0"] * (len(res) - 1))
         ax.axvline(res[col].iloc[0], color="k", lw=0.6)
+        ax.set_xlim(*lim)
         ax.set_title(title)
     axes[0].tick_params(axis="y", labelsize=6)
     axes[0].invert_yaxis()
