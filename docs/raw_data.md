@@ -38,6 +38,11 @@ Everything below is under `data/raw/`. **Main** = needed by the core analysis;
 IDs: **S** = a source we use; **N** = one we cannot or do not use. (S14 was N1 until
 2026-09-29, when it came into use for S11.)
 
+Since 2026-09-30 only three months of S1, S7, S9 and S11 are on disk: 2024-05, 2025-07 and 2025-08,
+the months processed first (3.1, 1.8, 0.1 and 1.7 GB). The other 21 bundles of each (46.5 GB)
+were deleted and can be downloaded again with the plans below; the list is in
+`data/interim/deleted_bundles.txt`.
+
 Not obtainable for the past: [N2 station hourly rainfall](#n2-automatic-weather-station-hourly-rainfall-hourlyrainfallphp)
 and HKO's JSON Current Weather Report (`weather.php?dataType=rhrread`); neither is in the Historical Archive.
 
@@ -202,17 +207,23 @@ One reading = one lane of one detector in one 30-second period (~4,200 readings 
 | Quirk | Evidence | Consequence |
 |-------|----------|-------------|
 | Archive time ≠ measurement time | File archived 08:01 holds 07:53:00–07:54:00 (lag ~5–10 min) | Use `period_from`, never the file name |
-| Missing periods | 1,730 of 2,880 periods per day present on 5 Aug 2025 (~40 % missing) | Missing data = **absent rows**, not NA |
-| Overlap | Adjacent files repeat readings; ~9 % of rows are duplicates | Deduplicate on (time, detector, lane) |
-| Midnight date | The 00:00 period carries the **previous day's** `<date>` | Re-date using the archive time |
-| Duplicate files | Monthly bundles occasionally store the same file twice | Drop identical copies |
-| Truncated files | A few files end mid-document (1 of 919 on 29 Jul 2025) | Keep complete readings before the cut |
+| Missing periods | 1,730 of 2,880 periods per day present on 5 Aug 2025 (~40 % missing). Over the three checked months 27.0 % (2024-05), 46.6 % (2025-07), 41.0 % (2025-08) are missing; the longest gap is 35 min (2024-05-30), at most 10 min in 2025. Every distinct file holds two periods, so the missing periods are the minutes the archive did not fetch | Missing data = **absent rows**, not NA |
+| Identical copies | The archive often stores the same file at two or more fetch times (e.g. 00:07 and 00:10 on 5 Aug 2025): 113 extra copies of 32,718 members in 2024-05, 2,261 of 26,101 in 2025-07, 2,096 of 28,445 in 2025-08. The same member name also occurs twice (30 / 6 / 43 names), always with the same bytes | Read one file per group of identical files (`src.clean.manifest`); the file names keep every fetch time |
+| No overlap between distinct files | Once identical copies are grouped, each 30-s period is in exactly one file (all three months), except the periods of the truncated files below. The ~9 % repeated rows seen on 5 Aug 2025 came from identical copies, not from overlapping files | Nothing to deduplicate by (time, detector, lane) |
+| Midnight date | The 00:00 period carries the **previous day's** `<date>`: all 83 files holding 00:00:00 and 00:00:30 in the three months, fetched 00:06–00:10, say the day before | Re-date using the archive time |
+| Truncated files | A few files end mid-document: 3 in the three months (fetched 2025-07-17 14:18, 2025-07-29 10:28, 2025-08-11 02:00). Each is cut after exactly 393,216 or 196,608 bytes (384 / 192 KiB) and is a byte-for-byte prefix of a complete file fetched 1–3 minutes away | Skip them |
+| Same lane twice | TDS90026 lists two lanes called `Middle Lane` (direction `West`), with different values, in nearly every file of 2025-07 and 2025-08 (49,590 files). AID02215 lists `Fast Lane` and `Slow Lane` twice in one period (2024-05-30 08:25:00) | The lanes cannot be told apart by `lane_id`; open question |
+| Direction missing | `<direction>` is absent for AID09115, AID09116, AID90008 and AID90009 (four new detectors on Tai Po Road, Sha Tin) in every file up to 2025-07-25 10:34:30 (268,072 readings; AID09115 from the start of the 2025-07 bundle, the others from 07-03). From 10:36:00 it is present: `East`, `East`, `West`, `West`. S2 lists them only from its 2025-10 version, with the same directions. No other S1 field is ever absent or empty, and every number, date and time is well-formed | Direction from S2 2025-10 or the later S1 files; open question |
 | Schema change | `<s.d.>` appears from ~18 Nov 2021 (data dictionary `20211118`) | `sd` missing earlier |
 | Placeholder speed | With `volume = 0`, `speed` is 70 / 80 / 100 / 50 / 110 (the speed limit) and `s.d.` = 0 in 99.9 % of cases | Not a measurement |
 | Contradictions | `speed = 0` with `volume > 0`: 5,991 readings; `occupancy = -1`: 60 | Cleaning rule needed |
 | Out of range | `speed > 130`: 15,711 readings (0.4 %), mostly 131–136 in the fast lane; max 300 | Cleaning rule needed |
 | Stuck sensor or standstill? | `occupancy = 100`: 1,533 readings, 1,415 with speed = volume = 0. TDSLTR20004 reads 100 % from 06:34 to 15:26 on 5 Aug 2025, during the Black Rainstorm | Needs judgement: sensor fault or flooded road |
 | Partial reporting | AID01133 reports only after 20:45 on 5 Aug 2025 (219 periods) | Per-detector coverage matters |
+
+The figures for the three months (2024-05, 2025-07, 2025-08; 332.9 M readings) come from
+`python -m src.clean.manifest`, `src.clean.s1_periods` and `src.clean.s1_rows`; their tables are in
+`data/interim/checks/`.
 
 ---
 
