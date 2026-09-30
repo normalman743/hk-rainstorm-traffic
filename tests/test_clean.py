@@ -139,6 +139,29 @@ def test_s13_parse_raises_on_other_errors():
         parse(S13_XML.replace(b"<ID>1</ID>", b"<ID>1</ID><ID>2</ID>"), "t")
 
 
+S11_XML = (b'<?xml version="1.0" encoding="utf-8"?><segment_speed_list xmlns:xsi="http://www.w3.org/2001/'
+           b'XMLSchema-instance"><date>2025-08-05</date><time>08:01:00</time><irn_version>20221210</irn_version>'
+           b'<segments><segment><segment_id>58280</segment_id><speed>65.3</speed><valid>Y</valid></segment>'
+           b'<segment><segment_id>58736</segment_id><speed/></segment></segments></segment_speed_list>')
+
+
+def test_s11_parse_keeps_text_absent_and_empty():
+    from src.clean.s11_parse import _head_of_truncated, parse
+    head = ("2025-08-05", "08:01:00", "20221210")
+    assert parse(S11_XML, "t") == (head, [("58280", "65.3", "Y"), ("58736", "", None)])
+    assert _head_of_truncated(S11_XML[:260], "t") == head
+    with pytest.raises(ValueError, match="0 <irn_version>"):
+        _head_of_truncated(S11_XML[:180], "t")
+
+
+def test_s11_parse_raises_on_unknown_or_repeated_element():
+    from src.clean.s11_parse import parse
+    with pytest.raises(ValueError, match="unexpected <flow>"):
+        parse(S11_XML.replace(b"<speed/>", b"<speed/><flow>1</flow>"), "t")
+    with pytest.raises(ValueError, match="<time> twice"):
+        parse(S11_XML.replace(b"<time>08:01:00</time>", b"<time>08:01:00</time><time>08:03:00</time>"), "t")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):
