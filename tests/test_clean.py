@@ -472,3 +472,22 @@ def test_l2_ref_signal_times_and_daily_rain():
     assert out.rain_mm.tolist() == [0.0, 352.3] and out.trace.tolist() == [True, False] and left == 1
     with pytest.raises(ValueError, match="values"):
         daily(s8.assign(**{"數值/Value": ["***", "#", "1.0"]}))
+
+
+def test_l3_episodes_and_month_edges():
+    from datetime import datetime
+
+    import pandas as pd
+
+    from src.l3 import Options, _episodes, _month_edge, options
+
+    s4 = pd.DataFrame({"start": [datetime(2025, 8, 5, 5, 50), datetime(2025, 8, 5, 3), datetime(2025, 8, 5, 22, 55)],
+                       "end": [datetime(2025, 8, 5, 17, 5), datetime(2025, 8, 5, 5, 50), datetime(2025, 8, 6, 0, 30)],
+                       "level": [3, 1, 1]})
+    e = _episodes(s4)
+    assert e.episode.tolist() == [0, 0, 1]
+    assert e.episode_start.tolist() == [datetime(2025, 8, 5, 3)] * 2 + [datetime(2025, 8, 5, 22, 55)]
+    assert _month_edge(datetime(2025, 8, 31, 22, 45)) and _month_edge(datetime(2025, 7, 1, 0, 30))
+    assert not _month_edge(datetime(2025, 8, 31, 22, 30)) and not _month_edge(datetime(2025, 8, 30, 23, 0))
+    assert options(["minutes=60", "speed_agg=mean"]).name() == "speed_agg=mean__minutes=60"
+    assert Options().name() == "default"

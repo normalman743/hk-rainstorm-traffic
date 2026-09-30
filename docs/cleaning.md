@@ -83,6 +83,29 @@ Tuen Mun, has rain in 18.4 % of the hours) and 14.5 % (20.9 %). Not clustered in
 5 of 40 blocks in a warning (the month: 3.8 %), 12 of 40 in rain (14.2 % of district-hours);
 36 of the 40 are on 2024-05-01/02; 48 rows in all, so the drop cannot move a result.
 
+## L3 analysis table (Claude, 2026-10-01, pending review)
+
+`src/l3.py` builds one row per detector and 15-min slot from the L2 tables
+(`data/interim/l3/default.parquet`, 6,430,886 rows, 75 s); the options are PROPOSAL.md P1–P10
+and the RQ3 ablation rebuilds the table with one option changed. Defaults and why:
+
+| Step | Default | Why / evidence | Rows (default) |
+|------|---------|----------------|---------------:|
+| P1 | Lane readings with `valid = N` left out | The flag is the only sign of an offline detector (N rows look normal) | with P2: 12,163,933 of 332,874,105 readings |
+| P2 | A reading with volume > 0 and speed 0 or > 130 km/h left out. Per-lane robust z is **not** the default | Speed 0 with volume > 0 has mean volume 16.6 per 30 s and occupancy 53 % (2024-05): vehicles counted cannot pass at 0 km/h (H1). A per-lane z-score would remove the rainstorm slow-downs the project studies, so it is an RQ3 alternative only | (in P1) |
+| P3 | A lane slot whose readings are all identical (with volume or occupancy > 0) for ≥ 2 slots in a row left out | e.g. occupancy 100 with speed = volume = 0 for hours | 1,122 lane slots |
+| P4 | Speed = Σ(speed × volume) / Σ volume over the lane readings; flow = vehicles per hour, all lanes; occupancy = mean | With volume 0 the speed is the speed limit (70 / 80 / 100 / 50 / 110 in 99.9 %), not a measurement, so it gets weight 0. A slot with no vehicle in any lane has no speed and is left out | 34,691 slots left out |
+| P5 | 15 min | Rain is hourly (HH:45); 15-min slots fit the hour exactly | – |
+| P6 | 1–2 missing slots between two present ones: linear interpolation, flagged; not used for the baseline | S1 has up to 47 % of the 30-s periods unfetched, but at most 35 min in a row | 25,787 slots added |
+| P7 | Rain of the detector's district (D11), midpoint of `low`–`high` | – | 7,273 slots after 22:45 on a month's last day left out: that bulletin is in the next month's files |
+| P8 | The hour (HH:45–HH:45) the slot starts in; `rain_lag1` the hour before | – | – |
+| P9 | Warning level: the highest signal in force at any time in the slot; minutes since the episode (signals that follow on without a break) began | – | – |
+| P10 | Speed ratio = speed / median speed of the detector's dry slots of the same season (2024-05; 2025-07 + 08), day type (weekday; Saturday; Sunday or S6 holiday) and slot of day; at least 3 dry slots. Dry = no rain in the district this hour and the hour before, no rainstorm warning, TC signal < 8 | By month, 2025-07 Saturdays lost 91 % of their baseline (4 Saturdays, 2 with a TC signal; slots with signal 1 or 3 were not dry at first); seasons pool July and August, both school summer holidays | 109,646 slots left out |
+| P11 | TC signal ≥ 8 slots are left out by the analysis; holidays are a day type | Signal 8–10: median flow ratio 0.49 / 0.31 / 0.16 | – |
+
+Also left out: 1,469 slots outside the three months (the first files of a month hold the
+last minutes of the day before). Counts: `data/interim/checks/l3_default_counts.csv`.
+
 ## Open
 
 "Proposal" marks a suggestion that has not been decided. "[ext]" marks evidence from the external review of O1–O17 (GPT, 2026-09-30); "[ext, checked]" means Claude re-ran it on L1 the same day with the same result (script kept outside the repo).
