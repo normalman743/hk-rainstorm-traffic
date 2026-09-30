@@ -21,7 +21,7 @@
 | S3 | 现时天气报告（分区雨量） | 天文台 | 每小时 | 18 区（最小–最大毫米） | 2024-01 至 2025-12，月度打包 | 28 MB | 主要 |
 | S4 | 暴雨警告信号 | 天文台 | 每个信号 | 全港 | 1998-04 至 2026-08 | 37 kB | 主要 |
 | S5 | 热带气旋警告信号 | 天文台 | 每个信号 | 全港 | 1946 至 2026-09 | 136 kB | 主要 |
-| S6 | 公众假期 | 1823 | 每天 | 全港 | 2018 至 2027（合并） | 8 kB | 主要 |
+| S6 | 公众假期 | 1823 | 每天 | 全港 | 10 个版本，2019-07 至 2026-05（覆盖 2018 至 2027） | 31 kB | 主要 |
 | S8 | 逐日总雨量 | 天文台 | 每天 | 1 个站（天文台总部） | 1884-03 至 2026-08 | 0.8 MB | 主要 |
 | S9 | 智能灯柱探测器读数 | 运输署 | 30 秒时段 | 车道 × 探测器（17 个有数据） | 2024-01 至 2025-12，月度打包 | 0.9 GB | 可选 |
 | S10 | 智能灯柱探测器位置 | 运输署 | 按版本 | 探测器 | 2023-12、2024-01 | 8 kB | 可选 |
@@ -43,18 +43,21 @@
 
 按数据来源分两个下载工具：
 
-**`hkgovdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S7、S9–S14（S14：1 个版本）。
+**`hkgovdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S6（10 个版本）、S7、S9–S14（S14：1 个版本）。
 按 `plans/` 里的 plan 下载；目录结构为 `data/raw/<网址主机>/<网址路径>/`：
 
 | Plan | 内容 | 大小 |
 |------|------|------|
-| `2024_2025_main.json` | S1、S3、S13、S2（2022-03、2024-02、2025-10）、S14（2023-09） | 25.2 GB |
+| `2024_2025_main.json` | S1、S3、S13、S2（2022-03、2024-02、2025-10）、S14（2023-09）、S6（10 个版本，2019-07 至 2026-05） | 25.2 GB |
 | `2024_2025_optional.json` | S11、S9、S7、S10 | 28.1 GB |
 | `road_network_2024_2025.json` | S12 | 0.6 GB |
 
 ```bash
 python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw
 ```
+
+S6 这一项是 2026-09-30 加进 plan 的，下载时每个版本单独建一个 plan 来跑：如果作为一个 plan 一起跑，
+它的 10 个大小查询会同时发出，存档服务器断开了其中一部分连接（SSL EOF）。
 
 ```
 <网址主机>/<网址路径>/bundle/<YYYYMMDD>.zip          存档的月度打包文件，原样保存
@@ -70,13 +73,14 @@ python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw
 
 | 命令 | 写入 | 数据 |
 |------|------|------|
-| `warnings` | `hko/rstorm.dat`、`hko/tc.dat`（及解析后的 `rainstorm_warnings.csv`、`tc_signals.csv`） | S4、S5（不在 DATA.GOV.HK 上） |
+| `warnings` | `hko/rstorm.dat`、`hko/tc.dat`（及解析后的 `rainstorm_warnings.csv`、`tc_signals.csv`） | S4、S5（不在 DATA.GOV.HK 上）。下载后先解码再写回，文件开头的 BOM 因此被去掉；其他内容不变 |
 | `static` | `hko/daily_HKO_RF_ALL.csv`、`td/traffic_speed_volume_occ_info.csv` | S8；S2 实时副本（与其 2026-04 版本相同） |
 | `static-history` | `td/traffic_speed_volume_occ_info/<YYYYMMDD>.csv`、`td/speed_segments_info/<YYYYMMDD>.csv` | S2 的 2021-08 至 2021-12 和 2026-04 版本；S14 的 2021-08 至 2022-10 版本 |
-| `holidays` | `calendar/public_holidays.csv` | S6（所有存档版本合并） |
+| `holidays` | `calendar/public_holidays.csv` | S6，所有存档版本合并（较新的版本覆盖较旧的）。这是加工过的结果，不是原始数据：L1 读的是存档的各个版本 |
 
 两边都有的版本已逐字节核对，`src.download` 的副本已删除。
 这些数据的数据字典是手动存进 `hko/data-dictionary/`、`calendar/data-dictionary/` 和 `td/data-dictionary/` 的（见"数据字典"一节）。
+`calendar/data-dictionary/` 里 S6 的 4 份数据字典，与现在 plan 下载的那 4 份逐字节相同。
 
 ---
 
@@ -111,7 +115,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | S9、S10 | `dataspec-traffic-data-slp.pdf`（20231228、20240418） | 一种：XML 结构与 S1 相同 |
 | S3 | `HKO_Open_Data_API_Documentation.pdf`（11 个版本） | 三种；它说明的是 JSON API，**不是我们用的 RSS 文件** |
 | S4、S5 | `hko/data-dictionary/hko-webpage-warndb3.shtml.html`、`…warndb1.shtml.html` | **没有官方数据字典**：保存的是天文台数据库网页（2026-09-29），里面有临时记录、信号编号沿革等说明 |
-| S6 | `calendar/data-dictionary/…-1823_cal_dictionary.pdf`（4 个版本） | – |
+| S6 | `www.1823.gov.hk/common/ical/en.json/data-dictionary/…-1823_cal_dictionary.pdf`（4 个版本；`calendar/data-dictionary/` 里有相同的副本） | – |
 | S7 | `HKO_gridded_rainfall_nowcast_documentation.pdf`（6 个版本） | 一种 |
 | S8 | `hko/data-dictionary/20250227-data_dictionary_daily_total_rainfall.pdf` | – |
 | S12 | `rdnet_dataspec.zip`（5 个版本）：FGDB、GML、KML 各一份 PDF | – |
@@ -228,8 +232,8 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | `Road_EN`、`Road_TC`、`Road_SC` | 字符串 | 位置描述（英文、繁体、简体）：道路、地标、方向 | 97% 末尾有**多余的空格**。有两个名字各被两个探测器共用（AID04108/AID04121、AID04109/AID04122，相距约 30 米），所以关联时必须用编号，不能用名字 |
 | `Easting`、`Northing` | 整数 | 香港 1980 方格网坐标 | 单位：米 |
 | `Latitude`、`Longitude` | 小数 | WGS84 经纬度 | 北纬 22.25–22.51，东经 113.94–114.27 |
-| `Direction` | 字符串 | 行车方向 | 8 种：`West` 127、`North West` 117、`South East` 114、`East` 108、`North East` 105、`South` 85、`South West` 79、`North` 72 |
-| `Rotation` | 整数 | 方向角度（度），用于在地图上画箭头 | 0–355 |
+| `Direction` | 字符串 | "Direction of the detector"（数据字典原文；S1 `direction` 的说明相同） | 8 种：`West` 127、`North West` 117、`South East` 114、`East` 108、`North East` 105、`South` 85、`South West` 79、`North` 72 |
+| `Rotation` | 整数 | "Direction of the detector in degree"（数据字典原文；字典写的类型是 string） | 0–355 |
 
 **已检查全部 8 个版本**（`src.clean.versions_parse` → `data/interim/l1/s2/<版本>.parquet`，
 `src.clean.versions_checks` → `data/interim/checks/versions_*.csv`）：
@@ -335,6 +339,14 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 2024 | 37 | 4 | 0 |
 | 2025 | 24 | 6 | 4 |
 
+**L1**（`src.clean.signals_parse`）：`data/interim/l1/s4/rstorm.parquet`，一行对应文件的一行：`line`（行号）、
+上表的 13 列（列名 `colour`、`start_year` … `duration_minutes`）、`trailing_tabs`（行末多出的制表符个数）；值是原文字符串。
+
+| 检查（`src.clean.structure`） | 结果 |
+|-------|--------|
+| 行 | 975 行：974 个信号，然后是 `UUUU`（第 975 行）。所有值都符合预设格式：颜色 `A` / `R` / `B`，年份 4 位数字，其他字段 1–2 位数字 |
+| 行末制表符 | 第 1–28 行（1998 年）末尾多一个制表符，即多出一个空的第 14 个字段 |
+
 ---
 
 ## S5. 热带气旋警告信号（`tc.dat`）
@@ -343,7 +355,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 |---|---|
 | 网页 | [热带气旋警告信号数据库](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml) |
 | 数据文件 | `https://www.hko.gov.hk/dps/wxinfo/climat/warndb/tc.dat` |
-| 格式 | 制表符分隔，带 BOM 的 UTF-8，**没有表头**；1946 年至今共 2,512 行（1,262 个热带气旋信号 + 1,250 行其他记录） |
+| 格式 | 制表符分隔，**没有表头**；1946 年至今共 2,512 行（1,262 个热带气旋信号 + 1,250 行其他记录），最后一行是 `UUUU`。网站提供的是带 BOM 的 UTF-8；`src.download warnings` 保存时去掉了 BOM |
 
 例子：`202603	SuperT	SAUDEL	1	X	1810	31	8	2026	X	010	4	9	2026	X	7800`。
 
@@ -353,7 +365,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 2 | 强度：`TD` 热带低气压、`TS` 热带风暴、`STS` 强烈热带风暴、`T` 台风、`ST` 强台风、`SuperT` 超强台风；也有 `TST`、`TSupT`、`TD/TD` 这类组合代码（官方没有说明）。**`MSN` 行不是热带气旋信号**（1,250 行，已跳过） | `T` 394、`STS` 231、`TSupT` 178、`TS` 177、`TST` 113、`SuperT` 71、`TD` 56、`ST` 41 |
 | 3 | 名字；`NIL` 表示没有名字 | 109 个没有名字 |
 | 4 | 信号：1、3、8、9、10 号 | 1 号 538、3 号 428、8 号 242、9 号 35、10 号 19 |
-| 5 | 8 号信号的方向（`NE`/`NW`/`SE`/`SW`）；其他信号为 `X`；部分旧记录为 `*` | – |
+| 5 | 8 号信号的方向（`NE`/`NW`/`SE`/`SW`）；其他信号为 `X`；部分旧记录为 `*`；`MSN` 行是罗盘方位 | 见下面的检查 |
 | 6 | 开始时间 `HHMM`（省略了开头的 0：`10` = 00:10；`2400` = 午夜） | – |
 | 7–9 | 开始日、月、年 | – |
 | 10 | 标记 `X` / `S`（官方没有说明；`S` 只出现在旧记录） | – |
@@ -361,6 +373,18 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 12–14 | 结束日、月、年 | – |
 | 15 | 标记，同第 10 列 | – |
 | 16 | 持续时间 `HHHMM`（`7800` = 78 小时 00 分钟） | – |
+
+**L1**（`src.clean.signals_parse`）：`data/interim/l1/s5/tc.parquet`，一行对应文件的一行：`line`、上表的 16 列
+（列名 `cyclone`、`intensity`、`name`、`signal`、`direction`、`start_time` … `duration`）、`trailing_tabs`；值是原文字符串，没有去空格。
+
+| 检查（`src.clean.structure`） | 结果 |
+|-------|--------|
+| `MSN` 行 | 1,250 行，`cyclone` 和 `signal` 都是 `0`。其中 1,116 行的 `direction` 是罗盘方位：`E` 659、`N` 426、`ENE` 14、`S` 10、`NNE` 5、`SSW` 1、`SSE` 1；其余 134 行是 `NE` / `NW` / `SE` / `SW` / `X` 之一 |
+| 方向 `*` | 24 个，全部在热带气旋行里（`TS` 10、`TD` 7、`TSupT` 3、`T` 2、`TST` 2） |
+| 名字 | 20 个带连字符（例如 `KAI-TAK`、`MA-ON`、`NOCK-TEN`）。第 2290 行：强度 `TD/TD`，名字 `no name(E)(5-6Jul2021)/ no name(W)(5-8Jul2021)`，两个无名热带低气压写在同一条记录里 |
+| 值末尾的空格 | 第 1695–1702 行（2005 年，`MSN` 行）：日 `3 `、`4 `；时间 `915 `、`445 `；持续时间 `900 `、`550 `、`200 ` |
+| 行末制表符 | 第 1681、1732 行末尾多一个制表符，第 1733 行多两个 |
+| 其他 | 所有值都符合预设格式：时间 1–4 位数字，日、月 1–2 位，年 4 位，标记 `X` / `S`，持续时间 1–5 位数字 |
 
 ---
 
@@ -372,6 +396,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 实时网址 | `https://www.1823.gov.hk/common/ical/en.json`（另有 `tc.json`、`sc.json`） |
 | 格式 | iCalendar 风格的 JSON，带 BOM 的 UTF-8 |
 | 覆盖 | **每个文件只覆盖三年**（当前的实时文件是 2025–2027）。2019 年以来存档的 10 个版本合起来覆盖 2018–2027 |
+| 硬盘上 | 存档的 10 个版本：`www.1823.gov.hk/common/ical/en.json/bundle/<YYYYMMDD>.zip`，2019-07 至 2026-05，每个里面一个 `<YYYYMMDD-HHMM>-en.json`。`calendar/public_holidays.csv` 是把它们合并后的结果（加工过的） |
 
 结构：`vcalendar[0].vevent[]`，每个假期一个对象：
 
@@ -385,6 +410,15 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 
 实测：2018–2027 每年都是 17 个假期；170 个中有 29 个落在周末。
 同一个假期在不同版本中写法不同（例如 "Lunar New Year’s Day" 的撇号有弯、直两种），所以一共有 30 种名称。**使用时只看日期，不看名称。**
+
+**L1**（`src.clean.s6_parse`）：`data/interim/l1/s6/en.parquet`，所有版本的每个假期一行（510 = 10 × 51）：
+`bundle`、`member`、`position`、日历的 6 个属性、假期的各属性（原文）；`dtstart` 和 `dtend` 拆成值和
+`dtstart_params` / `dtend_params`（JSON 文本）。其他属性如果不是纯文本，程序会报错。
+
+| 检查（`src.clean.structure`） | 结果 |
+|-------|--------|
+| 每个版本 | 一个日历（`prodid`、`version` `2.0`、`calscale` `GREGORIAN`、`x-wr-timezone` `Asia/Hong_Kong`、`x-wr-calname`、`x-wr-caldesc`），51 个假期。`dtstart` / `dtend` 都是 `[8 位数字, {"value": "DATE"}]`；`transp` 都是 `TRANSPARENT`；`uid` 都是 `<日期>@1823.gov.hk`；`summary` 两端都没有空格 |
+| 版本之间的差别 | `dtstamp`：只有 2025-05 和 2026-05 有（例如 `20250506T032740Z`）。`prodid` 有 4 种写法：`-//1823, Efficiency Office, HKSARG//…`（2019-07、2019-10）、`-//1823 Call Centre, Efficiency Office, HKSARG//…`（2020-06 至 2024-05）、`-//1823 Call Centre, HKSARG//…`（2025-03）、`-//1823 Contact Centre, HKSARG//…`（2025-05、2026-05） |
 
 ---
 
@@ -407,11 +441,21 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 直接把 `Value` 转成数字，`Trace` 会变成 NaN，但它应该当作约等于 0。
 2022–2025 年有 238 天是 `Trace`，没有 `***`。
 
+**L1**（`src.clean.s8_parse`）：`data/interim/l1/s8/daily_HKO_RF_ALL.parquet`，一天一行：`line` 和表头的 5 列（列名照表头原文）；
+值是原文字符串。2 行标题、表头、数据后面的空行和 4 行图例（`*** 沒有數據/unavailable`、`# 數據不完整/data incomplete`、
+`微量表示少於 0.05 毫米/Trace means rainfall less than 0.05 mm`、`C 數據完整/data Complete`）不存进表里，而是逐字核对：有任何变化都会报错。
+
+| 检查（`src.clean.structure`） | 结果 |
+|-------|--------|
+| 天数 | 49,492 天，1884-03-01 至 2026-08-31；年 4 位数字，月、日 1–2 位 |
+| `數值/Value` | 42,565 个一位小数的数字；`Trace` 6,926 个（第一次在 1884-12-06，第 284 行）；`***` 1 个：第 5847 行，**1900-02-29，这一天并不存在**（1900 年不是闰年） |
+| `數據完整性/data Completeness` | 除第 5847 行为空外，全部是 `C` |
+
 ---
 
 ## 可选来源
 
-2024–2025 年已下载（见"数据清单"）。已解析成 L1（`data/interim/l1/`）并检查了 2024-05、2025-07、2025-08 的：S9、S11、S13、S7；S10 和 S14 检查了全部版本。S12 尚未解析。除特别说明外，这里的"实测"数字来自一个月度打包文件（2025-08）；"检查"行给出的是三个月的数字。
+2024–2025 年已下载（见"数据清单"）。已解析成 L1（`data/interim/l1/`）并检查了 2024-05、2025-07、2025-08 的：S9、S11、S13、S7、S12（这三个月里的 4 个版本）；S10 和 S14 检查了全部版本。除特别说明外，这里的"实测"数字来自一个月度打包文件（2025-08）；"检查"行给出的是三个月的数字。
 
 ### S9. 智能灯柱探测器读数（`rawSpeedVol_SLP-all.xml`）
 
@@ -442,7 +486,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 实时网址 | `https://resource.data.one.gov.hk/td/traffic-detectors/irnAvgSpeed-all.xml` |
 | 结构 | `<segment_speed_list>`：`date`、`time`、`irn_version`，然后 `<segments>` 里每个 `<segment>` 有 `segment_id`、`speed`（小数，km/h，"current average speed"）、`valid`（`Y` 在线 / `N` 离线） |
 | 实测 | 2025-08 有 21,414 份快照（相隔约 1–2 分钟），每月解压后 7.9 GB；每个文件 4,405 个路段，一份样本中 41 个 `valid = N`。17:02 存档的文件 `time` 是 16:55。`irn_version` 为 `20221210` |
-| 关联 | `segment_id` 就是 S12 道路中心线的 `ROUTE_ID`。S11 2024-05 的路段全部在 2024-05-28 的 S12 版本里。2025-07 / 2025-08 分别有 9 / 10 个路段不在同月的 S12 版本（2025-07-30、2025-08-29）里，但在更早的版本里：56821、60813、62346、63794、63796、63797、8797 最后出现在 2024-06-05；261807 在 2025-04-28；105473 在 2025-06-26；59042 在 2025-07-30。S11 仍在报告这些路段（62346 和 63797 到 2025-08-06，其余整月）。这是临时读取每个 S12 版本 CENTERLINE 的 `ROUTE_ID` 得到的（S12 尚未解析） |
+| 关联 | `segment_id` 就是 S12 道路中心线的 `ROUTE_ID`。S11 2024-05 的路段全部在 2024-05-28 的 S12 版本里。2025-07 / 2025-08 分别有 9 / 10 个路段不在同月的 S12 版本（2025-07-30、2025-08-29）里，但在更早的版本里：56821、60813、62346、63794、63796、63797、8797 最后出现在 2024-06-05；261807 在 2025-04-28；105473 在 2025-06-26；59042 在 2025-07-30。S11 仍在报告这些路段（62346 和 63797 到 2025-08-06，其余整月）。这是在解析 S12 之前，临时读取每个 S12 版本 CENTERLINE 的 `ROUTE_ID` 得到的（S12 的 L1 只包含这三个月里的版本） |
 | 已检查（2024-05、2025-07、2025-08；2.537 亿行路段读数） | `src.clean.s11_parse`、`src.clean.s11_checks`。去重后 21,619 / 17,415 / 18,674 个文件。3 个文件被截断（两个截在 64 KiB，一个只缺结尾的 `segment_speed_list>`），每个都是同一时间那个完整文件的字节前缀，已跳过。每个文件一个 `date`、`time`、`irn_version`；`irn_version` 全部是 `20221210`；每个 (`date`, `time`) 只在一个完整文件里出现。没有缺失或空值；`segment_id` 全是数字，`speed` 全是小数，`valid` 只有 `Y` / `N`；同一文件里没有重复路段 |
 | 时间 | `time` 都是 HH:MM:00 且分钟为奇数（每 2 分钟一次），只有 2 个文件例外（2025-07-02 02:14、2025-08-01 22:16；下一个文件是 02:15 / 22:17）。每天 720 个奇数分钟时间点中，缺失：2024-05 共 704 个（3.2 %），2025-07 共 4,909 个（22.0 %），2025-08 共 3,651 个（16.4 %）。最长的空档：120 分钟（2025-08-23 19:25 → 21:25）、62 分钟（2025-08-31 01:47 → 02:49）、50 分钟（2024-05-30 19:59 → 20:49）；其余都 ≤ 18 分钟。文件在 `time` 之后 4–12 分钟被抓取（中位数 6） |
 | 路段 | 2024-05-08 17:21 之前每个文件 4,376 个路段，之后 4,388 个（新增 12 个，282434 .. 282486）。2025-07-29 11:11 之前 4,413 个，之后 4,405 个（删除 8 个）。2025-08-06：4,405 → 4,404 → 4,403 → 4,391（分别在 15:55、16:05、16:11 之后删除）。三个月共 4,414 个路段编号 |
@@ -473,7 +517,19 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 格式 | ZIP 里的 Esri File Geodatabase，在打包文件中名为 `<YYYYMMDD-HHMM>-RdNet_IRNP.gdb.zip`；每个版本约 17 MB，2024–2025 年共 34 个版本 |
 | 图层 | 17 个：`CENTERLINE`、`INTERSECTION`、`SPEED_LIMIT`、`BUS_ONLY_LANE`、`TURN`、`ROUNDABOUT`、`TRAFFIC_FEATURES`、`PEDESTRIAN_ZONE`、`NSR`、`PERMIT`、`PROHIBITION`、`VEHICLE_RESTRICTION`、`RUN_IN_OUT`、`ONSTREETPARK`、`GISP_ON_STREET_PARKING`、`TUN_BRIDGE_TOLL`、`TUN_BRIDGE_TV_TOLL` |
 | CENTERLINE | 35,837 条（2025-08）；列 `STREET_ENAME`、`STREET_CNAME`、`ELEVATION`、`ST_CODE`、`EXIT_NUM`、`ROUTE_NUM`、`REMARKS`、`ROUTE_ID`、`TRAVEL_DIRECTION`、`CRE_DATE`、`LAST_UPD_DATE_V`、`ALIAS_ENAME`、`ALIAS_CNAME`、`SHAPE_Length`；坐标系 EPSG:2326（香港 1980 方格网，与 S2 的 `Easting` / `Northing` 相同） |
-| 读取 | `geopandas` / `pyogrio`（已装在 conda base）。几何带 M 值，pyogrio 会去掉并给出警告 |
+| 读取 | `pyogrio`（conda base）会去掉 M 值并给出警告，而有 6 个图层带 M 值；它的非 Arrow 读法还会把曲线转成折线。所以 `src.clean.s12_parse` 的属性用 `pyogrio.raw.read_arrow` 读，几何用 GDAL 的 C 接口导出（见它的 docstring） |
+
+**L1**（`src.clean.s12_parse`）：`data/interim/l1/s12/<图层>/<YYYYMM>.parquet`，打包文件里每个版本的每个要素一行：
+`bundle`、`index`、`OBJECTID`、各属性（GDAL 给出的类型）、`SHAPE`（ISO WKB，保留 Z / M 和曲线）；
+`data/interim/checks/s12_layers.csv`，每个版本的每个图层一行。这三个月里的版本：2024-05-28、2025-07-25、2025-07-30、2025-08-29。
+
+| 检查（`src.clean.structure`） | 结果 |
+|-------|--------|
+| 图层 | 每个版本都有全部 17 个。14 个有几何，坐标系都是 EPSG:2326；`TUN_BRIDGE_TOLL`、`TUN_BRIDGE_TV_TOLL`、`GISP_ON_STREET_PARKING` 是没有几何的表 |
+| M 值 | `VEHICLE_RESTRICTION`、`PROHIBITION`、`PERMIT`（带 M 的点）；`SPEED_LIMIT`、`PEDESTRIAN_ZONE`、`BUS_ONLY_LANE`（带 M 的多线） |
+| 曲线 | 存成 MultiCurve，尽管图层类型写的是 MultiLineString（4 个版本合计）：`NSR` 2,094、`CENTERLINE` 1,664、`SPEED_LIMIT` 32（带 M）、`TURN` 20、`BUS_ONLY_LANE` 8（带 M） |
+| 2024-05 → 2025 的字段变化 | `GISP_ON_STREET_PARKING`：新增 4 个字段（`OT_OPER_HR_DESC`、`OT_OPER_HR_DESC_CHI`、`OT_IRNP_REMARKS_ENG`、`OT_IRNP_REMARKS_CHI`），`X_COOR` / `Y_COOR` 从 int32 变成 double。`TRAFFIC_FEATURES`：`RD_ID_7` 至 `RD_ID_9` 从 double 变成 int32。`TUN_BRIDGE_TOLL`、`TUN_BRIDGE_TV_TOLL`：`LAST_UPDATED_DATE` 从字符串变成时间戳。几个月的数据要合在一起，得先处理这些差异 |
+| 要素数 | 例如 `CENTERLINE` 35,141 / 35,760 / 35,775 / 35,837。`ONSTREETPARK` 和 `GISP_ON_STREET_PARKING` 在每个版本里要素数都相同（36,167 至 37,184） |
 
 ### S13. 特别交通消息（`trafficnews.xml`）
 

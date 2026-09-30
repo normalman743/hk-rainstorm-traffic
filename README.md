@@ -100,12 +100,50 @@ days out of a bundle with HTTP range requests.
 
 ## Processing
 
-**Being rewritten.** The earlier pipeline (download selected days → parse → Parquet → delete
-the ZIPs, plus a detector × 15-min table and validation) was removed on 2026-09-29 with its
-output; it is in the git history before that date. The new one will read the monthly bundles
-already in `data/raw/`. What `src.download` itself derives (warning signals, rainstorm episodes,
-holidays, and the optional day selection `select-days`) is described in
-[`docs/processing.md`](docs/processing.md).
+Layers: **L1** is the raw files as written, in Parquet. Every value is kept as a string, an
+absent element is null and an empty one is `""`. **L2** (cleaning rules, to be recorded in
+`docs/cleaning.md`) is not started yet. The earlier pipeline was removed on 2026-09-29; it is in
+the git history before that date.
+
+L1 from the monthly bundles in `data/raw/` (any months; the parsers read the months listed in
+the manifest):
+
+```bash
+export PYTHONPATH=.
+# All of steps 1 and 2 in one command (stops at the first step that fails):
+python -m src.clean.l1 202405 202507 202508
+
+# 1. Manifest: every file in the bundles of these months; byte-identical copies are parsed once.
+#    List ALL months you want, old and new: the manifest and checks/*.csv are rewritten.
+python -m src.clean.manifest 202405 202507 202508
+
+# 2. Parsers -> data/interim/l1/<source>/<YYYYMM or version>.parquet
+python -m src.clean.s1_periods --source s1 && python -m src.clean.s1_parse --source s1  # S1 detector readings
+python -m src.clean.s1_periods --source s9 && python -m src.clean.s1_parse --source s9  # S9 lamppost readings
+python -m src.clean.s3_parse          # S3 weather bulletins
+python -m src.clean.s13_parse         # S13 traffic news
+python -m src.clean.s11_parse         # S11 segment speeds
+python -m src.clean.s7_parse          # S7 gridded rainfall nowcast
+python -m src.clean.s12_parse         # S12 road network, every layer (geometry with Z / M)
+python -m src.clean.versions_parse    # S2 / S10 / S14, every version
+python -m src.clean.s6_parse          # S6 public holidays, every version
+python -m src.clean.signals_parse     # S4 rainstorm / S5 tropical cyclone signals
+python -m src.clean.s8_parse          # S8 daily rainfall
+
+# 3. Checks (optional, not needed for L1) -> data/interim/checks/
+python -m src.clean.s1_rows --source s1 && python -m src.clean.s1_rows --source s9
+python -m src.clean.s3_checks && python -m src.clean.s13_checks && python -m src.clean.s11_checks
+python -m src.clean.s7_checks && python -m src.clean.versions_checks
+python -m src.clean.structure         # S4 S5 S6 S8 S12: presumed forms against the data, with every exception
+```
+
+A parser raises on anything it does not know (a new element, header or file form) instead of
+skipping it; look at the case, then decide. What each parser keeps and skips is in its
+docstring; the findings are in
+[`docs/raw_data.md`](docs/raw_data.md).
+
+What `src.download` itself derives (warning signals, rainstorm episodes, holidays, and the
+optional day selection `select-days`) is described in [`docs/processing.md`](docs/processing.md).
 
 ## Data quirks found so far
 

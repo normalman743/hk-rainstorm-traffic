@@ -94,8 +94,44 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 
 ## 数据处理
 
-**正在重写。** 之前的流程（下载选定的日子 → 解析 → Parquet → 删除 ZIP，另有探测器 × 15 分钟表和数据检查）
-已于 2026-09-29 连同其输出一起删除；该日期之前的 git 历史里还能找到。新流程将读取 `data/raw/` 里已有的月度打包文件。
+分层：**L1** 是原始文件的原样内容，存为 Parquet：所有值都是字符串，元素不存在记为 null，元素为空记为 `""`。
+**L2**（清洗规则，将记录在 `docs/cleaning.md`）还没开始。之前的流程已于 2026-09-29 删除，该日期之前的 git 历史里还能找到。
+
+从 `data/raw/` 里的月度打包文件生成 L1（月份任意；解析程序只处理 manifest 里登记的月份）：
+
+```bash
+export PYTHONPATH=.
+# 第 1、2 步一条命令做完（哪一步出错就停在哪一步）：
+python -m src.clean.l1 202405 202507 202508
+
+# 1. manifest：登记这些月份打包文件里的每个文件；字节完全相同的副本只解析一次。
+#    新旧月份要一起写上：manifest 和 checks/*.csv 会整张重写。
+python -m src.clean.manifest 202405 202507 202508
+
+# 2. 解析 -> data/interim/l1/<来源>/<年月或版本>.parquet
+python -m src.clean.s1_periods --source s1 && python -m src.clean.s1_parse --source s1  # S1 探测器读数
+python -m src.clean.s1_periods --source s9 && python -m src.clean.s1_parse --source s9  # S9 灯柱读数
+python -m src.clean.s3_parse          # S3 天气公报
+python -m src.clean.s13_parse         # S13 交通消息
+python -m src.clean.s11_parse         # S11 路段车速
+python -m src.clean.s7_parse          # S7 雨量临近预报
+python -m src.clean.s12_parse         # S12 路网，所有图层（几何保留 Z / M）
+python -m src.clean.versions_parse    # S2 / S10 / S14 的所有版本
+python -m src.clean.s6_parse          # S6 公众假期的所有版本
+python -m src.clean.signals_parse     # S4 暴雨警告 / S5 热带气旋信号
+python -m src.clean.s8_parse          # S8 每日雨量
+
+# 3. 检查（可选，生成 L1 不需要）-> data/interim/checks/
+python -m src.clean.s1_rows --source s1 && python -m src.clean.s1_rows --source s9
+python -m src.clean.s3_checks && python -m src.clean.s13_checks && python -m src.clean.s11_checks
+python -m src.clean.s7_checks && python -m src.clean.versions_checks
+python -m src.clean.structure         # S4 S5 S6 S8 S12：预设格式对照实际数据，列出所有例外
+```
+
+解析程序遇到不认识的内容（新的元素、表头或文件格式）会直接报错，不会跳过：先看是什么情况，再决定怎么处理。
+每个解析程序保留什么、跳过什么，写在各自的 docstring 里；发现的问题见
+[`docs/raw_data.zh.md`](docs/raw_data.zh.md)。
+
 `src.download` 自己生成的内容（警告信号、暴雨事件、假期，以及可选的选日子 `select-days`）见
 [`docs/processing.zh.md`](docs/processing.zh.md)。
 
