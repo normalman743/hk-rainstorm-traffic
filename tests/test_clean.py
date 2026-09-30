@@ -315,3 +315,160 @@ def test_s6_parse_raises_on_unknown_keys_forms_and_repeats():
         parse(_s6({**S6_EVENT, "summary": ["The first day of January", {"language": "en"}]}), "t")
     with pytest.raises(ValueError, match=r"is not \[value"):
         parse(_s6({**S6_EVENT, "dtstart": "20240101"}), "t")
+
+
+def _l2_s1_con(blocks):
+    """DuckDB with views l1, l1_all, fetch from blocks = [(date, period_from, detector, direction,
+    [(lane_id, speed, volume, occupancy, sd, valid), ...]), ...]; one file per block, fetched 5 min later."""
+    import datetime as dt
+
+    import duckdb
+    import pandas as pd
+    rows, fetch = [], []
+    for i, (date, pfrom, det, direction, lanes) in enumerate(blocks):
+        t0 = dt.datetime.strptime(pfrom, "%H:%M:%S")
+        pto = (t0 + dt.timedelta(seconds=30)).strftime("%H:%M:%S")
+        day = dt.date.fromisoformat(date) + dt.timedelta(days=pfrom in ("00:00:00", "00:00:30"))
+        fetch.append(("b.zip", i, dt.datetime.combine(day, t0.time()) + dt.timedelta(minutes=5)))
+        for pos, lane in enumerate(lanes):
+            rows.append(("b.zip", i, date, pfrom, pto, det, direction, pos, *lane))
+    con = duckdb.connect()
+    l1 = pd.DataFrame(rows, columns=["bundle", "index", "date", "period_from", "period_to", "detector_id",
+                                     "direction", "lane_position", "lane_id", "speed", "volume",
+                                     "occupancy", "sd", "valid"])
+    l1["index"] = l1["index"].astype("int32")
+    f = pd.DataFrame(fetch, columns=["bundle", "index", "fetch_time"])
+    con.register("l1_df", l1)
+    con.register("fetch_df", f)
+    con.sql("create view l1 as select * from l1_df")
+    con.sql("create view l1_all as select * from l1_df")
+    con.sql("create view fetches as select * from fetch_df")
+    return con
+
+
+def _lanes(*names, speed="80", volume="4", occupancy="5", sd="1.5", valid="Y"):
+    return [(n, speed, volume, occupancy, sd, valid) for n in names]
+
+
+def test_l2_s1_applies_the_rules():
+    from src.clean.l2_s1 import clean
+    fs = ("Fast Lane", "Slow Lane")
+    blocks = [
+        # D6: 00:00 carries the previous day; D3: trailing space; D21: occupancy -1 with volume 0.
+        ("2025-06-30", "00:00:00", "AID00001", "North ", [("Fast Lane", "70", "0", "-1", "0", "Y"),
+                                                         ("Slow Lane", "60", "2", "3", "1", "Y")]),
+        ("2025-07-01", "00:10:00", "AID00001", "North ", _lanes(*fs)),
+        ("2025-07-01", "00:10:30", "AID00001", "North ", _lanes("Fast Lane")),  # D14
+        ("2025-07-01", "00:11:00", "AID00001", "North ", _lanes(*fs)),
+        # D4 and D12
+        ("2025-07-01", "00:10:00", "TDS90026", "West", _lanes("Fast Lane", "Middle Lane", "Middle Lane", "Slow Lane")),
+        ("2025-07-01", "00:10:30", "TDS90026", "West", _lanes("Fast Lane", "Middle Lane", "Slow Lane")),
+        ("2025-07-01", "00:11:00", "TDS90026", "West", _lanes("Fast Lane", "Middle Lane", "Middle Lane", "Slow Lane")),
+        # D13: two complete blocks give the ratios for hour 0, one block misses Slow Lane
+        ("2025-07-01", "00:10:00", "TDS90036", "North West",
+         [("Fast Lane", "90", "4", "4", "2", "Y"), ("Middle Lane 1", "80", "3", "3", "2", "Y"),
+          ("Middle Lane 2", "70", "3", "3", "2", "Y"), ("Slow Lane", "40", "1", "2", "1", "Y")]),
+        ("2025-07-01", "00:10:30", "TDS90036", "North West",
+         [("Fast Lane", "90", "4", "4", "2", "Y"), ("Middle Lane 1", "80", "3", "3", "2", "Y"),
+          ("Middle Lane 2", "70", "3", "3", "2", "Y"), ("Slow Lane", "64", "1", "2", "1", "Y")]),
+        ("2025-07-01", "00:11:00", "TDS90036", "North West",
+         [("Fast Lane", "100", "8", "8", "4", "Y"), ("Middle Lane 1", "80", "6", "6", "4", "Y"),
+          ("Middle Lane 2", "60", "6", "6", "4", "N")]),
+        # D5
+        ("2024-05-30", "08:24:30", "AID02215", "South", _lanes(*fs)),
+        ("2024-05-30", "08:25:00", "AID02215", "South", [("Fast Lane", "97", "5", "2", "0", "Y"),
+                                                          ("Fast Lane", "92", "4", "2", "0", "Y"),
+                                                          ("Slow Lane", "105", "1", "0", "0", "Y"),
+                                                          ("Slow Lane", "86", "7", "4", "0", "Y")]),
+        # D16
+        ("2025-07-01", "00:10:00", "AID09115", None, _lanes(*fs)),
+        ("2025-07-01", "00:10:30", "AID09115", "East", _lanes(*fs)),
+    ]
+    con = _l2_s1_con(blocks)
+    counts = {(r, w): n for r, w, n in clean(con, "202507")}
+    l2 = con.sql("select * from l2").df()
+
+    a = l2[l2.detector_id == "AID00001"].sort_values(["time", "lane_id"])
+    assert str(a.time.iloc[0]) == "2025-07-01 00:00:00" and set(a.direction) == {"North"}
+    assert a.occupancy.iloc[0] == 0 and a.l2_rule.iloc[0] == "D21"
+    assert "2025-07-01 00:10:30" not in set(a.time.astype(str))
+    t26 = l2[l2.detector_id == "TDS90026"]
+    assert set(t26.lane_id) == {"Fast Lane", "Middle Lane 1", "Middle Lane 2", "Slow Lane"}
+    assert len(t26) == 8
+    slow = l2[(l2.detector_id == "TDS90036") & (l2.l2_rule == "D13")]
+    assert len(slow) == 1 and slow.lane_id.iloc[0] == "Slow Lane"
+    # volume: 20 x (2 / 20); occupancy: 20 x (4 / 20); speed: 80 x median(40/80, 64/80); sd: 4 x 0.5
+    assert slow[["volume", "occupancy", "speed", "sd"]].iloc[0].tolist() == pytest.approx([2, 4, 52, 2])
+    assert not slow.valid.iloc[0]
+    d5 = l2[(l2.detector_id == "AID02215") & (l2.l2_rule == "D5")].set_index("lane_id")
+    assert d5.loc["Fast Lane", "speed"] == 94.5 and d5.loc["Slow Lane", "volume"] == 4
+    assert set(l2[l2.detector_id == "AID09115"].direction) == {"East"}
+    assert counts[("D16", "rows with direction filled")] == 2
+    assert counts[("D14", "blocks dropped")] == 1 and counts[("D12", "blocks dropped")] == 1
+    assert counts[("D6", "rows re-dated (00:00:00, 00:00:30)")] == 2
+    assert counts[("L2", "rows out")] == len(l2) == 6 + 8 + 12 + 4 + 4
+
+
+def test_l2_s1_raises_on_what_no_rule_covers():
+    from src.clean.l2_s1 import clean
+    base = ("2025-07-01", "00:00:30", "AID00001", "North")
+    with pytest.raises(ValueError, match="not covered by D4 / D5"):
+        clean(_l2_s1_con([(*base, _lanes("Fast Lane", "Fast Lane"))]), "202507")
+    with pytest.raises(ValueError, match="no rule"):
+        clean(_l2_s1_con([(*base, _lanes("Fast Lane", "Slow Lane")),
+                          ("2025-07-01", "00:01:00", "AID00001", "North", _lanes("Fast Lane", "Slow Lane")),
+                          ("2025-07-01", "00:01:30", "AID00001", "North", _lanes("Fast Lane", "Middle Lane"))]),
+              "202507")
+    with pytest.raises(ValueError, match="negative occupancy"):
+        clean(_l2_s1_con([(*base, [("Fast Lane", "70", "3", "-1", "0", "Y")])]), "202507")
+
+
+def test_l2_s3_period_end_dates_by_bulletin_and_raises_on_other_forms():
+    from datetime import datetime
+
+    from src.clean.l2_s3 import period_end
+
+    assert period_end("11:45 p.m. and 12:45 a.m.", datetime(2025, 8, 5, 1, 0), "x") == datetime(2025, 8, 5, 0, 45)
+    assert period_end("6:45 and 7:45 a.m.", datetime(2025, 8, 5, 8, 2), "x") == datetime(2025, 8, 5, 7, 45)
+    with pytest.raises(ValueError, match="not one hour"):
+        period_end("5:45 and 7:45 a.m.", datetime(2025, 8, 5, 8, 2), "x")
+    with pytest.raises(ValueError, match="another form"):
+        period_end("6:30 and 7:30 a.m.", datetime(2025, 8, 5, 8, 2), "x")
+
+
+def test_l2_ref_signal_times_and_daily_rain():
+    from datetime import datetime
+
+    import pandas as pd
+
+    from src.clean.l2_ref import daily, rainstorm, tropical
+
+    s4 = pd.DataFrame([["1", "A", "2000", "4", "2", "22", "15", "2000", "4", "2", "24", "00", "1", "45"],
+                       ["2", "UUUU"] + [None] * 12],
+                      columns=["line", "colour", "start_year", "start_month", "start_day", "start_hour",
+                               "start_minute", "end_year", "end_month", "end_day", "end_hour", "end_minute",
+                               "duration_hours", "duration_minutes"])
+    out, n2400 = rainstorm(s4)
+    assert out.end.tolist() == [datetime(2000, 4, 3)] and n2400 == 1 and not out.provisional.any()
+    with pytest.raises(ValueError, match="duration"):
+        rainstorm(s4.assign(duration_minutes="50"))
+
+    cols = ["line", "cyclone", "intensity", "name", "signal", "direction", "start_time", "start_day",
+            "start_month", "start_year", "start_flag", "end_time", "end_day", "end_month", "end_year",
+            "end_flag", "duration", "trailing_tabs"]
+    s5 = pd.DataFrame([[1, "195306", "TST", "BETTY", "3", "*", "1040", "31", "10", "1953", "S",
+                        "2155", "1", "11", "1953", "X", "3615", 0],
+                       [2, "0", "MSN", "X", "0", "ENE", "915 ", "3 ", "1", "2005", "X",
+                        "945", "3", "1", "2005", "X", "30", 0]], columns=cols)
+    out, msn, spaced, n2400, summer = tropical(s5)
+    assert out.start.tolist() == [datetime(1953, 10, 31, 9, 40)] and (msn, spaced, summer) == (1, 2, 1)
+    with pytest.raises(ValueError, match="flag"):
+        tropical(s5.assign(start_flag="Q"))
+
+    s8 = pd.DataFrame({"年/Year": ["1900", "2025", "2025"], "月/Month": ["2", "8", "8"], "日/Day": ["29", "4", "5"],
+                       "數值/Value": ["***", "Trace", "352.3"], "數據完整性/data Completeness": ["", "C", "C"],
+                       "line": [1, 2, 3]})
+    out, left = daily(s8)
+    assert out.rain_mm.tolist() == [0.0, 352.3] and out.trace.tolist() == [True, False] and left == 1
+    with pytest.raises(ValueError, match="values"):
+        daily(s8.assign(**{"數值/Value": ["***", "#", "1.0"]}))

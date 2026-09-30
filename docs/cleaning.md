@@ -1,7 +1,7 @@
 # Cleaning record
 
-L1 (`data/interim/l1/`) keeps every raw file as written. L2 is where the data gets cleaned; it
-is not started yet. This file records what has been decided for L2 and what is still open.
+L1 (`data/interim/l1/`) keeps every raw file as written. L2 (`data/interim/l2/`) is where the
+data gets cleaned: `src.clean.l2_s1`, `l2_s3` and `l2_ref`; counts in "Applied" below. This file records what has been decided for L2 and what is still open.
 Each entry gives the fields, the evidence, and who decided it and when. The findings behind
 the entries are in [`raw_data.md`](raw_data.md). Months: 2024-05, 2025-07, 2025-08.
 
@@ -39,7 +39,7 @@ Principles:
 | D10 | S3 | The rain table keeps one row per (rain period, district). Where two files give the same period, their values must be equal and one is kept; unequal values raise | Two cases, both equal in all 18 districts: the 22:02 bulletin of 2025-08-18 (period 20:45–21:45) is in two files that differ only in the weather icon (`pic63.png` → `pic64.png`); the 17:00 bulletin of 2025-07-18 repeats the 16:02 bulletin's period 14:45–15:45 (the 17:11 bulletin then gives 15:45–16:45) | user, 2026-10-01 |
 | D11 | S2, S3 | A detector's rain district is its S2 `District`, through a fixed name map to the S3 names: `Eastern` → `Eastern District`, `Southern` → `Southern District`, `Islands` → `Islands District`, `North` → `North District`, `Central & Western` and `Central and Western` → `Central & Western District`; the other 13 names are the same. A name not in the map raises. The district is not re-derived from coordinates. `low` and `high` are both kept; which one the analysis uses is an analysis choice | Every S1 detector of the three months is in S2 2025-10. S2 covers all 18 S3 districts (9 to 131 detectors each). `Central and Western` is written for one detector only (TDSIEC10001, Harcourt Road near Tim Mei Avenue - Eastbound); `Central & Western` for 13. No district boundary data is on disk | user, 2026-10-01 |
 | D12 (was O18, part) | S1 | TDS90026: drop the 3-lane blocks of 2025 (1,846 blocks: 1,143 in 2025-07, 703 in 2025-08). Its 4-lane blocks are kept (D4). Its 3-lane blocks of 2024-05 are normal and kept | Tuen Mun Road near Sham Tseng - Westbound (2). In the 2025 3-lane blocks, Middle Lane volume is 0 in 97–98 % of rows (mean 0.06 / 0.11) and median speed is 70 in every lane of 2025-07, while `valid` is `Y` in 99.7–99.9 %. Its 4-lane blocks in the same months read Middle mean volume 5.8, median speeds 77 / 67 / 42; its 3-lane blocks of 2024-05 read median speeds 76 / 69 / 62, mean volumes 8.0 / 7.1 / 3.7. Neighbours TDS90025 and TDS90027 are on the same road | user, 2026-10-01 |
-| D13 (was O18, part) | S1 | TDS90036: in the 2,022 blocks without `Slow Lane`, the Slow Lane is estimated from the other three lanes of the same block and the detector's own ratios by hour of day, taken from its complete blocks of the same month: volume and occupancy = the other lanes' total × (Slow total / other total); speed = the other lanes' mean speed × the median of (Slow speed / other lanes' mean speed). Flagged as estimated. TODO when writing L2: `sd` and `valid` of the estimated row, and hours where the other lanes' volume is 0 | Tuen Mun Road near Tuen Mun Road Bus-Bus Interchange - Westbound (1); lanes Fast, Middle Lane 1, Middle Lane 2, Slow. 2,022 blocks without Slow (170 in 2024-05, 1,852 in 2025-07, on 21 days, spread over the hours of the day), 162,503 complete. In the complete blocks (all three months together) Slow carries 1.2–5.9 % of the volume by hour (about 3 % by day); its speed is 0.59–0.85 of the other lanes' mean by hour (median), with a wide spread (10th–90th percentile 0.42–0.97). Estimated rather than dropped because the other three lanes are real readings and Slow carries little of the volume | user, 2026-10-01 |
+| D13 (was O18, part) | S1 | TDS90036: in the 2,022 blocks without `Slow Lane`, the Slow Lane is estimated from the other three lanes of the same block and the detector's own ratios by hour of day, taken from its complete blocks of the same month: volume and occupancy = the other lanes' total × (Slow total / other total); speed = the other lanes' mean speed × the median of (Slow speed / other lanes' mean speed). Flagged as estimated. `sd` = the other lanes' mean sd × the median of (Slow sd / other lanes' mean sd); `valid` = true only if all three other lanes are valid; a block whose other lanes have volume 0 gets Slow volume 0 (the ratio is by hour over the month, so it exists; an hour without one raises) (Claude, 2026-10-01, pending review) | Tuen Mun Road near Tuen Mun Road Bus-Bus Interchange - Westbound (1); lanes Fast, Middle Lane 1, Middle Lane 2, Slow. 2,022 blocks without Slow (170 in 2024-05, 1,852 in 2025-07, on 21 days, spread over the hours of the day), 162,503 complete. In the complete blocks (all three months together) Slow carries 1.2–5.9 % of the volume by hour (about 3 % by day); its speed is 0.59–0.85 of the other lanes' mean by hour (median), with a wide spread (10th–90th percentile 0.42–0.97). Estimated rather than dropped because the other three lanes are real readings and Slow carries little of the volume | user, 2026-10-01 |
 | D14 (was O18, part) | S1 | Drop the 40 blocks (38 detectors) in which lanes are missing for a single block | 36 of the 38 detectors on 2024-05-01/02, AID07104 on 05-11, AID04218 on 05-17; AID02120 and AID07203 twice. Many keep 1 lane of 3–4 (e.g. AID02120: Fast only of 4), and in most the detector is also absent at ±30 s (both neighbours present only for AID02215, D5), so there is nothing to interpolate from | user, 2026-10-01 |
 | D15 (was O18, part) | S1 | The 24 detectors whose lanes change once (between 2024-05 and 2025-07) are kept as they are | More lanes (e.g. TDS91016 3 → 4, TDS90070 4 → 5), fewer (TDSTCKR10001 Middle+Slow → Slow) or other names for the same count (AID02116 `Fast, Middle` → `Fast, Slow`); read as a change on the road or in the equipment, not an error | user, 2026-10-01 |
 | D16 (was O3) | S1 | AID09115, AID09116, AID90008, AID90009: before 2025-07-25 10:36:00, `direction` is taken from their own later S1 readings (`East`, `East`, `West`, `West`); flagged as filled | 268,072 readings without `direction`. Each S1 detector has one direction in every month and the same in all three months (D1); S2 2025-10 gives the same four | user, 2026-10-01 |
@@ -47,6 +47,41 @@ Principles:
 | D18 (was O15) | S5 | `MSN` rows are left out of the signal table; count recorded | 1,250 rows with `cyclone` and `signal` `0` and a compass direction; not tropical cyclone signals; HKO's own warning database leaves them out [ext] | user, 2026-10-01 |
 | D19 (was O16) | S8 | `Trace` = 0 mm, flagged as trace (as D9: under 1 mm an hour is 0 in S3). The 1900-02-29 row (`***`) is left out | `Trace` on 6,926 days (238 in 2022–2025); 1900-02-29 does not exist and is outside the study period | user, 2026-10-01 |
 | D20 (was O17) | S4 | End time `24:00` = 00:00 of the next day; any other `24:xx` raises | Line 56: 2000-04-02 22:15 → 24:00, 105 min; line 596: 2019-05-20 22:05 → 24:00, 115 min; both equal end − start with that reading [ext, checked]. Both outside the study period | user, 2026-10-01 |
+| D21 | S1 | `occupancy = -1` becomes 0, flagged; `-1` with a volume other than 0, or any other negative occupancy, raises | 7,687 rows in L1 (three months), every one with `volume = 0`, so read as "no vehicle, occupancy not computed" | Claude, 2026-10-01, pending review |
+| D22 | S5 | A time flagged `S` (columns 10 and 15) is Hong Kong summer time (HKT + 1 h) and is moved back 1 h to HKT | With `S` = summer time, `duration` = end − start in all 1,262 signal rows; read as written, the 3 rows that start in `S` and end in `X` (e.g. line 86, BETTY 1953-10-31 → 11-01: 35 h 15 min apart, `duration` 3615) are 1 h short. `S` occurs 1946–1979 only; Hong Kong stopped summer time after 1979. 451 signals touched, none in the study period | Claude, 2026-10-01, pending review |
+
+## Applied (L2, 2026-10-01)
+
+Counts from `data/interim/checks/l2_s1_counts.csv`, `l2_s3_counts.csv`, `l2_ref_counts.csv`;
+the dropped S1 blocks are listed in `l2_s1_dropped.csv`.
+
+| Rule | What | 2024-05 | 2025-07 | 2025-08 |
+|------|------|--------:|--------:|--------:|
+| – | S1 L1 rows in | 123,072,815 | 99,901,116 | 109,903,740 |
+| D3 | S1 rows whose `direction` lost a space | 1,048,442 | 857,783 | 948,206 |
+| D4 | S1 blocks with `Middle Lane` numbered | 0 | 46,384 | 51,709 |
+| D5 | S1 rows averaged (4 in → 2 out) | 4 → 2 | 0 | 0 |
+| D6 | S1 rows re-dated | 98,142 | 109,729 | 121,594 |
+| D12 | S1 blocks (rows) dropped | 0 | 1,143 (3,429) | 703 (2,109) |
+| D13 | S1 blocks with Slow Lane estimated (1 row each) | 170 | 1,852 | 0 |
+| D14 | S1 blocks (rows) dropped | 40 (48) | 0 | 0 |
+| D16 | S1 rows with `direction` filled | 0 | 268,072 | 0 |
+| D21 | S1 rows with occupancy −1 set to 0 | 3,085 | 2,322 | 2,280 |
+| – | S1 L2 rows out | 123,072,935 | 99,899,539 | 109,901,631 |
+
+S1 rows out = in − D5 (2) − D12 − D14 + D13. S3 (all months on disk): 2,231 bulletins; 1,419
+without a rainfall sentence (period by the lag rule; the one bulletin with a sentence that
+differs from the rule is the 2025-07-18 17:00 repeat, D10); D10 2 periods; D9 33,340 rows; D8
+3 periods; 40,176 rows out (2,232 periods × 18 districts). S2: 790 detectors, 128 renamed by
+D11. S4: 974 signals, D20 2. S5: 1,262 signals, D18 1,250 rows out, D17 10 values, `2400` 2,
+D22 451 signals. S6: 170 holiday dates (2018–2027). S8: 49,491 days, D19 6,926 Trace, 1 row out.
+
+**Drop check against rain** (principle above). D12 blocks in a rainstorm warning: 10 of 1,143
+(0.9 %) in 2025-07, when warnings cover 4.3 % of the month; 66 of 703 (9.4 %) in 2025-08
+(8.9 %). In an hour with rain in the detector's district (S3 `high` > 0): 19.9 % (the district,
+Tuen Mun, has rain in 18.4 % of the hours) and 14.5 % (20.9 %). Not clustered in rain. D14:
+5 of 40 blocks in a warning (the month: 3.8 %), 12 of 40 in rain (14.2 % of district-hours);
+36 of the 40 are on 2024-05-01/02; 48 rows in all, so the drop cannot move a result.
 
 ## Open
 
