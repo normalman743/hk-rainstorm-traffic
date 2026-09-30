@@ -1,0 +1,641 @@
+{
+ "coverage": {
+  "202405": {
+   "mean_share_of_periods": 0.71,
+   "detectors_per_day_median": 707
+  },
+  "202507": {
+   "mean_share_of_periods": 0.531,
+   "detectors_per_day_median": 772
+  },
+  "202508": {
+   "mean_share_of_periods": 0.587,
+   "detectors_per_day_median": 773
+  }
+ },
+ "warnings": {
+  "Amber": {
+   "signals": 41,
+   "hours": 76.1
+  },
+  "Red": {
+   "signals": 18,
+   "hours": 28.4
+  },
+  "Black": {
+   "signals": 5,
+   "hours": 20.9
+  }
+ },
+ "by_warning": [
+  {
+   "warn_level": 0,
+   "slots": 5988953,
+   "detectors": 784,
+   "speed_ratio": 0.999,
+   "speed_p10": 0.9401,
+   "flow_ratio": 1.0,
+   "occ_ratio": 1.0
+  },
+  {
+   "warn_level": 1,
+   "slots": 217036,
+   "detectors": 784,
+   "speed_ratio": 0.94,
+   "speed_p10": 0.8165,
+   "flow_ratio": 0.9298,
+   "occ_ratio": 0.9794
+  },
+  {
+   "warn_level": 2,
+   "slots": 75776,
+   "detectors": 783,
+   "speed_ratio": 0.9183,
+   "speed_p10": 0.7695,
+   "flow_ratio": 0.9019,
+   "occ_ratio": 0.9882
+  },
+  {
+   "warn_level": 3,
+   "slots": 66391,
+   "detectors": 777,
+   "speed_ratio": 0.9367,
+   "speed_p10": 0.7851,
+   "flow_ratio": 0.62,
+   "occ_ratio": 0.6562
+  }
+ ],
+ "by_rain": [
+  {
+   "rain_bin": "0",
+   "no_warning": false,
+   "slots": 33510,
+   "speed_ratio": 0.9821,
+   "flow_ratio": 0.9229
+  },
+  {
+   "rain_bin": "0-5",
+   "no_warning": false,
+   "slots": 144814,
+   "speed_ratio": 0.9506,
+   "flow_ratio": 0.9123
+  },
+  {
+   "rain_bin": "5-10",
+   "no_warning": false,
+   "slots": 68676,
+   "speed_ratio": 0.9287,
+   "flow_ratio": 0.8929
+  },
+  {
+   "rain_bin": "10-20",
+   "no_warning": false,
+   "slots": 66970,
+   "speed_ratio": 0.9077,
+   "flow_ratio": 0.8766
+  },
+  {
+   "rain_bin": "20-40",
+   "no_warning": false,
+   "slots": 32528,
+   "speed_ratio": 0.8666,
+   "flow_ratio": 0.8531
+  },
+  {
+   "rain_bin": ">40",
+   "no_warning": false,
+   "slots": 12705,
+   "speed_ratio": 0.8245,
+   "flow_ratio": 0.7668
+  },
+  {
+   "rain_bin": "0",
+   "no_warning": true,
+   "slots": 5267437,
+   "speed_ratio": 1.0,
+   "flow_ratio": 1.0
+  },
+  {
+   "rain_bin": "0-5",
+   "no_warning": true,
+   "slots": 603699,
+   "speed_ratio": 0.9758,
+   "flow_ratio": 0.9689
+  },
+  {
+   "rain_bin": "5-10",
+   "no_warning": true,
+   "slots": 83262,
+   "speed_ratio": 0.9513,
+   "flow_ratio": 0.9527
+  },
+  {
+   "rain_bin": "10-20",
+   "no_warning": true,
+   "slots": 28881,
+   "speed_ratio": 0.9332,
+   "flow_ratio": 0.9523
+  },
+  {
+   "rain_bin": "20-40",
+   "no_warning": true,
+   "slots": 5238,
+   "speed_ratio": 0.926,
+   "flow_ratio": 0.9429
+  },
+  {
+   "rain_bin": ">40",
+   "no_warning": true,
+   "slots": 436,
+   "speed_ratio": 0.888,
+   "flow_ratio": 0.8908
+  }
+ ],
+ "by_rain_and_level": [
+  {
+   "rain_bin": "0",
+   "warn_level": 0,
+   "slots": 5267437,
+   "speed_ratio": 1.0,
+   "flow_ratio": 1.0
+  },
+  {
+   "rain_bin": "0",
+   "warn_level": 1,
+   "slots": 26480,
+   "speed_ratio": 0.9797,
+   "flow_ratio": 0.9368
+  },
+  {
+   "rain_bin": "0",
+   "warn_level": 2,
+   "slots": 3668,
+   "speed_ratio": 0.9764,
+   "flow_ratio": 0.9206
+  },
+  {
+   "rain_bin": "0",
+   "warn_level": 3,
+   "slots": 3362,
+   "speed_ratio": 1.0065,
+   "flow_ratio": 0.6377
+  },
+  {
+   "rain_bin": "0-5",
+   "warn_level": 0,
+   "slots": 603699,
+   "speed_ratio": 0.9758,
+   "flow_ratio": 0.9689
+  },
+  {
+   "rain_bin": "0-5",
+   "warn_level": 1,
+   "slots": 99807,
+   "speed_ratio": 0.9465,
+   "flow_ratio": 0.9398
+  },
+  {
+   "rain_bin": "0-5",
+   "warn_level": 2,
+   "slots": 21644,
+   "speed_ratio": 0.9495,
+   "flow_ratio": 0.9137
+  },
+  {
+   "rain_bin": "0-5",
+   "warn_level": 3,
+   "slots": 23363,
+   "speed_ratio": 0.97,
+   "flow_ratio": 0.6262
+  },
+  {
+   "rain_bin": "5-10",
+   "warn_level": 0,
+   "slots": 83262,
+   "speed_ratio": 0.9513,
+   "flow_ratio": 0.9527
+  },
+  {
+   "rain_bin": "5-10",
+   "warn_level": 1,
+   "slots": 40701,
+   "speed_ratio": 0.9305,
+   "flow_ratio": 0.9146
+  },
+  {
+   "rain_bin": "5-10",
+   "warn_level": 2,
+   "slots": 17508,
+   "speed_ratio": 0.9213,
+   "flow_ratio": 0.9115
+  },
+  {
+   "rain_bin": "5-10",
+   "warn_level": 3,
+   "slots": 10467,
+   "speed_ratio": 0.9335,
+   "flow_ratio": 0.6535
+  },
+  {
+   "rain_bin": "10-20",
+   "warn_level": 0,
+   "slots": 28881,
+   "speed_ratio": 0.9332,
+   "flow_ratio": 0.9523
+  },
+  {
+   "rain_bin": "10-20",
+   "warn_level": 1,
+   "slots": 32562,
+   "speed_ratio": 0.9106,
+   "flow_ratio": 0.9223
+  },
+  {
+   "rain_bin": "10-20",
+   "warn_level": 2,
+   "slots": 19140,
+   "speed_ratio": 0.9009,
+   "flow_ratio": 0.9
+  },
+  {
+   "rain_bin": "10-20",
+   "warn_level": 3,
+   "slots": 15268,
+   "speed_ratio": 0.9106,
+   "flow_ratio": 0.6117
+  },
+  {
+   "rain_bin": "20-40",
+   "warn_level": 0,
+   "slots": 5238,
+   "speed_ratio": 0.926,
+   "flow_ratio": 0.9429
+  },
+  {
+   "rain_bin": "20-40",
+   "warn_level": 1,
+   "slots": 15195,
+   "speed_ratio": 0.8696,
+   "flow_ratio": 0.9085
+  },
+  {
+   "rain_bin": "20-40",
+   "warn_level": 2,
+   "slots": 9648,
+   "speed_ratio": 0.858,
+   "flow_ratio": 0.8757
+  },
+  {
+   "rain_bin": "20-40",
+   "warn_level": 3,
+   "slots": 7685,
+   "speed_ratio": 0.8713,
+   "flow_ratio": 0.553
+  },
+  {
+   "rain_bin": ">40",
+   "warn_level": 0,
+   "slots": 436,
+   "speed_ratio": 0.888,
+   "flow_ratio": 0.8908
+  },
+  {
+   "rain_bin": ">40",
+   "warn_level": 1,
+   "slots": 2291,
+   "speed_ratio": 0.8565,
+   "flow_ratio": 0.8741
+  },
+  {
+   "rain_bin": ">40",
+   "warn_level": 2,
+   "slots": 4168,
+   "speed_ratio": 0.8251,
+   "flow_ratio": 0.8379
+  },
+  {
+   "rain_bin": ">40",
+   "warn_level": 3,
+   "slots": 6246,
+   "speed_ratio": 0.8148,
+   "flow_ratio": 0.6163
+  }
+ ],
+ "by_hour_weekday_warning": [
+  {
+   "hour": 0,
+   "warning": true,
+   "speed_ratio": 0.9128,
+   "flow_ratio": 0.9275,
+   "slots": 11183
+  },
+  {
+   "hour": 1,
+   "warning": true,
+   "speed_ratio": 0.9225,
+   "flow_ratio": 0.9712,
+   "slots": 11098
+  },
+  {
+   "hour": 2,
+   "warning": true,
+   "speed_ratio": 0.9212,
+   "flow_ratio": 0.9506,
+   "slots": 6743
+  },
+  {
+   "hour": 3,
+   "warning": true,
+   "speed_ratio": 0.9367,
+   "flow_ratio": 0.9091,
+   "slots": 6064
+  },
+  {
+   "hour": 4,
+   "warning": true,
+   "speed_ratio": 0.9213,
+   "flow_ratio": 0.8853,
+   "slots": 6026
+  },
+  {
+   "hour": 5,
+   "warning": true,
+   "speed_ratio": 0.9229,
+   "flow_ratio": 0.93,
+   "slots": 8341
+  },
+  {
+   "hour": 6,
+   "warning": true,
+   "speed_ratio": 0.9256,
+   "flow_ratio": 0.8775,
+   "slots": 10685
+  },
+  {
+   "hour": 7,
+   "warning": true,
+   "speed_ratio": 0.9201,
+   "flow_ratio": 0.8308,
+   "slots": 11408
+  },
+  {
+   "hour": 8,
+   "warning": true,
+   "speed_ratio": 0.939,
+   "flow_ratio": 0.8619,
+   "slots": 16471
+  },
+  {
+   "hour": 9,
+   "warning": true,
+   "speed_ratio": 0.9214,
+   "flow_ratio": 0.7619,
+   "slots": 13770
+  },
+  {
+   "hour": 10,
+   "warning": true,
+   "speed_ratio": 0.9306,
+   "flow_ratio": 0.8618,
+   "slots": 22566
+  },
+  {
+   "hour": 11,
+   "warning": true,
+   "speed_ratio": 0.9361,
+   "flow_ratio": 0.9003,
+   "slots": 24026
+  },
+  {
+   "hour": 12,
+   "warning": true,
+   "speed_ratio": 0.9289,
+   "flow_ratio": 0.9326,
+   "slots": 26991
+  },
+  {
+   "hour": 13,
+   "warning": true,
+   "speed_ratio": 0.9439,
+   "flow_ratio": 0.9242,
+   "slots": 21048
+  },
+  {
+   "hour": 14,
+   "warning": true,
+   "speed_ratio": 0.9435,
+   "flow_ratio": 0.8824,
+   "slots": 15729
+  },
+  {
+   "hour": 15,
+   "warning": true,
+   "speed_ratio": 0.9452,
+   "flow_ratio": 0.8802,
+   "slots": 14055
+  },
+  {
+   "hour": 16,
+   "warning": true,
+   "speed_ratio": 0.9543,
+   "flow_ratio": 0.8857,
+   "slots": 9946
+  },
+  {
+   "hour": 17,
+   "warning": true,
+   "speed_ratio": 0.9661,
+   "flow_ratio": 0.7449,
+   "slots": 6087
+  },
+  {
+   "hour": 18,
+   "warning": true,
+   "speed_ratio": 0.9344,
+   "flow_ratio": 0.9109,
+   "slots": 3834
+  },
+  {
+   "hour": 19,
+   "warning": true,
+   "speed_ratio": 0.9093,
+   "flow_ratio": 0.9528,
+   "slots": 6139
+  },
+  {
+   "hour": 20,
+   "warning": true,
+   "speed_ratio": 0.9179,
+   "flow_ratio": 1.0183,
+   "slots": 6134
+  },
+  {
+   "hour": 21,
+   "warning": true,
+   "speed_ratio": 0.9271,
+   "flow_ratio": 0.9461,
+   "slots": 4562
+  },
+  {
+   "hour": 22,
+   "warning": true,
+   "speed_ratio": 0.9385,
+   "flow_ratio": 0.875,
+   "slots": 6843
+  },
+  {
+   "hour": 23,
+   "warning": true,
+   "speed_ratio": 0.9327,
+   "flow_ratio": 0.8519,
+   "slots": 11495
+  }
+ ],
+ "by_minutes_since_issue": [
+  {
+   "since": "0-30",
+   "warn_level": 1,
+   "slots": 47638,
+   "speed_ratio": 0.9415,
+   "flow_ratio": 0.9303,
+   "rain_mid": 6.0
+  },
+  {
+   "since": "30-60",
+   "warn_level": 1,
+   "slots": 32606,
+   "speed_ratio": 0.9353,
+   "flow_ratio": 0.9374,
+   "rain_mid": 5.5
+  },
+  {
+   "since": "60-120",
+   "warn_level": 1,
+   "slots": 38455,
+   "speed_ratio": 0.9429,
+   "flow_ratio": 0.9461,
+   "rain_mid": 2.5
+  },
+  {
+   "since": "120-240",
+   "warn_level": 1,
+   "slots": 28268,
+   "speed_ratio": 0.9413,
+   "flow_ratio": 0.9504,
+   "rain_mid": 3.0
+  },
+  {
+   "since": "240-480",
+   "warn_level": 1,
+   "slots": 37848,
+   "speed_ratio": 0.9383,
+   "flow_ratio": 0.9247,
+   "rain_mid": 3.5
+  },
+  {
+   "since": ">480",
+   "warn_level": 1,
+   "slots": 32221,
+   "speed_ratio": 0.9401,
+   "flow_ratio": 0.8896,
+   "rain_mid": 3.0
+  },
+  {
+   "since": "0-30",
+   "warn_level": 2,
+   "slots": 1533,
+   "speed_ratio": 0.9053,
+   "flow_ratio": 0.9409,
+   "rain_mid": 9.0
+  },
+  {
+   "since": "30-60",
+   "warn_level": 2,
+   "slots": 5355,
+   "speed_ratio": 0.8881,
+   "flow_ratio": 0.9157,
+   "rain_mid": 9.5
+  },
+  {
+   "since": "60-120",
+   "warn_level": 2,
+   "slots": 17867,
+   "speed_ratio": 0.9075,
+   "flow_ratio": 0.9186,
+   "rain_mid": 11.0
+  },
+  {
+   "since": "120-240",
+   "warn_level": 2,
+   "slots": 18406,
+   "speed_ratio": 0.926,
+   "flow_ratio": 0.8865,
+   "rain_mid": 8.5
+  },
+  {
+   "since": "240-480",
+   "warn_level": 2,
+   "slots": 32409,
+   "speed_ratio": 0.923,
+   "flow_ratio": 0.9,
+   "rain_mid": 8.0
+  },
+  {
+   "since": ">480",
+   "warn_level": 2,
+   "slots": 206,
+   "speed_ratio": 0.9823,
+   "flow_ratio": 0.8327,
+   "rain_mid": 0.0
+  },
+  {
+   "since": "30-60",
+   "warn_level": 3,
+   "slots": 766,
+   "speed_ratio": 0.9495,
+   "flow_ratio": 0.9477,
+   "rain_mid": 3.0
+  },
+  {
+   "since": "60-120",
+   "warn_level": 3,
+   "slots": 3062,
+   "speed_ratio": 0.9556,
+   "flow_ratio": 0.8766,
+   "rain_mid": 3.0
+  },
+  {
+   "since": "120-240",
+   "warn_level": 3,
+   "slots": 18394,
+   "speed_ratio": 0.9217,
+   "flow_ratio": 0.7964,
+   "rain_mid": 9.5
+  },
+  {
+   "since": "240-480",
+   "warn_level": 3,
+   "slots": 9194,
+   "speed_ratio": 0.9399,
+   "flow_ratio": 0.6705,
+   "rain_mid": 4.5
+  },
+  {
+   "since": ">480",
+   "warn_level": 3,
+   "slots": 34975,
+   "speed_ratio": 0.9419,
+   "flow_ratio": 0.5186,
+   "rain_mid": 9.5
+  }
+ ],
+ "black_2025_08_05": {
+  "slots_black": 56,
+  "median_speed_ratio_black": 0.9201,
+  "median_flow_ratio_black": 0.5545,
+  "min_speed_ratio": 0.7672,
+  "min_speed_ratio_slot": "2025-08-05 06:00:00",
+  "min_flow_ratio": 0.3765,
+  "rain_max_mm_h": 107.0
+ }
+}
