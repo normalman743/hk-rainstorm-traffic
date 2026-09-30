@@ -162,6 +162,35 @@ def test_s11_parse_raises_on_unknown_or_repeated_element():
         parse(S11_XML.replace(b"<time>08:01:00</time>", b"<time>08:01:00</time><time>08:03:00</time>"), "t")
 
 
+def _s7(body: bytes) -> bytes:
+    from src.clean.s7_parse import HEADER
+    return HEADER + b"\n" + body
+
+
+S7_BODY = b"202508011612,202508011642,23.487,112.956,0.00\n202508011612,202508011642,23.487,112.976,00.1\n"
+
+
+def test_s7_parse_keeps_text_as_written():
+    from src.clean.s7_parse import malformed, parse
+    assert malformed(_s7(S7_BODY), "t") is None
+    assert parse(_s7(S7_BODY), "t").to_pylist() == [
+        {"updated": "202508011612", "ending": "202508011642", "latitude": "23.487", "longitude": "112.956",
+         "rainfall": "0.00"},
+        {"updated": "202508011612", "ending": "202508011642", "latitude": "23.487", "longitude": "112.976",
+         "rainfall": "00.1"}]
+
+
+def test_s7_malformed_files_are_named_and_other_forms_raise():
+    from src.clean.s7_parse import malformed
+    assert malformed(_s7(S7_BODY[:-5]), "t").startswith("no final newline")
+    assert malformed(_s7(S7_BODY + b"5.291,1.73\n"), "t").startswith("line 4: 2 fields")
+    assert malformed(_s7(S7_BODY + b"\n"), "t").startswith("line 4: 1 fields")
+    with pytest.raises(ValueError, match="header"):
+        malformed(S7_BODY, "t")
+    with pytest.raises(ValueError, match="'\"'"):
+        malformed(_s7(S7_BODY.replace(b"0.00", b'"0.00"')), "t")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):

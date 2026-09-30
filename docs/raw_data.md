@@ -510,3 +510,14 @@ The data dictionary calls the data provisional.
 
 Observed (2025-08): the grid spans 21.328–23.487 °N, 112.956–115.291 °E (well beyond Hong Kong);
 a file archived 02:30 was updated 02:12 and ends at 02:42, 03:12, 03:42, 04:12; 8 GB uncompressed per month.
+
+**Checked on 2024-05, 2025-07, 2025-08** (`src.clean.s7_parse`, `src.clean.s7_checks`; 8,910 files, 518.4 M rows from the 8,852 parsed files):
+
+| Check | Result |
+|-------|--------|
+| Fetches | At :00, :15, :30, :45 (a few 1–4 min later); 96 a day on 29 / 25 / 29 days, 91–95 on 2024-05-24, 05-30, 2025-07-02, 07-11, 07-20 (91), 07-23, 07-28, 07-31, 08-04, 08-05. No identical copies |
+| Not well-formed, not parsed | 58 files (19 / 24 / 15). 44 have something after the last complete row: an empty line, or the end of a longer version (`5.291,1.73`, `,21.328,115.291,0.00`; one has two rows of the next update, 202507151012). 6 have merged lines inside (`202405200824,202405201024,22.106,1405201024,22.106,114.104,2.86`). 8 are cut at a multiple of 32 KiB (32 KiB .. 1,664 KiB) and have no final newline. Listed in `data/interim/checks/s7_files.csv`. Only one of them has an `updated` that a parsed file also has: 20250715-1030 and 20250715-1015 both say 202507151000, and their first 58,564 rows differ in 515 rainfall values (by −0.05 .. +0.01 mm). The other 57 forecasts are not in L1 |
+| Parsed files | 8,852. Each has 58,564 rows = 4 endings (30, 60, 90, 120 min after `updated`) × 14,641 cells (121 latitudes × 121 longitudes, 21.328–23.487 °N, 112.956–115.291 °E), one `updated`, no cell twice. No `updated` in two files. Nothing empty; `updated` / `ending` 12 digits, latitude / longitude 3 decimals, rainfall 2 decimals, except in the 3 files below |
+| Corrupted rows with 5 fields | 3 parsed files: 20250723-0530 (6 rows, e.g. `updated` `2025072230512`, longitude `114202`), 20250815-1315 (latitude `21.60`, `22..825`), 20250824-0830 (longitude `114.1143`). They show in the formats and because their cells differ from every other file. A corrupted rainfall value that keeps the format cannot be seen |
+| Times | `updated` is at :00, :12, :24, :36, :48 (every 12 min). The archive holds :00, :12, :24 about 736 times a month each, :48 656–692 times, :36 only 50 / 79 / 53 times. Fetched 11–33 min after `updated` (median 18). Longest time between successive `updated` within a day: 24 min (65 days), 36 (25), 48 (3) |
+| Rainfall | `0.00` in 80.8 / 84.7 / 82.1 % of rows. Maximum 583.39 mm (2024-05), 4,149.47 (2025-07), 5,406.92 (2025-08). Values ≥ 1,000 mm: none in 2024-05, 649 rows (58 files) in 2025-07, 1,493 rows (77 files) in 2025-08, more at longer lead times (2025-08, ≥ 500 mm: 546 / 946 / 1,295 / 1,525 rows at +30 / 60 / 90 / 120 min) |
