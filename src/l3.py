@@ -226,6 +226,11 @@ def _episodes(s4: pd.DataFrame) -> pd.DataFrame:
 
 def _context(con: duckdb.DuckDBPyConnection, o: Options, counts: list) -> None:
     """Joins S2, S3, S4, S5, S6 onto `det`: table `ctx`."""
+    months = f"strftime(slot, '%Y%m') not in {tuple(MONTHS)}"
+    out = con.sql(f"select count(*) from det where {months}").fetchone()[0]
+    counts.append(("L3", "slots left out: outside the three months (the first files of a month hold "
+                         "the last minutes of the day before)", out))
+    con.sql(f"delete from det where {months}")
     s4 = _episodes(con.sql(f"select * from read_parquet('{L2_DIR / 's4' / 'rainstorm.parquet'}')").df())
     con.register("s4_df", s4)
     con.sql("create or replace table s4 as select * from s4_df")
@@ -291,10 +296,6 @@ def _context(con: duckdb.DuckDBPyConnection, o: Options, counts: list) -> None:
                     when dayofweek(c.slot) = 6 then 'saturday' else 'weekday' end as day_type
         from ctx c left join read_parquet('{L2_DIR / 's6' / 'holidays.parquet'}') h
              on h.date = cast(c.slot as date)""")
-    out = con.sql(f"select count(*) from ctx where month not in {tuple(MONTHS)}").fetchone()[0]
-    counts.append(("L3", "slots left out: outside the three months (the first files of a month hold "
-                         "the last minutes of the day before)", out))
-    con.sql(f"delete from ctx where month not in {tuple(MONTHS)}")
     con.sql("""alter table ctx add column dry boolean""")
     con.sql(f"update ctx set dry = rain_high = 0 and rain_high_lag1 = 0 and warn_level = 0 and tc_signal < {TC_MAX}")
 
@@ -320,7 +321,7 @@ def _baseline(con: duckdb.DuckDBPyConnection, o: Options, counts: list) -> None:
     con.sql("delete from l3 where flow_ratio is null or ratio is null")
 
 
-def build(o: Options) -> pd.DataFrame:
+def build(o: Options) -> None:
     _check(o)
     start = clock.time()
     tmp = ROOT / ".tmp"
@@ -342,23 +343,24 @@ def build(o: Options) -> pd.DataFrame:
             "speed", "flow", "occupancy", "interpolated", "rain", "rain_mid", "rain_high", "rain_max",
             "rain_lag1", "rain_rule", "warn_level", "warn_minutes", "tc_signal", "dry", "base_speed",
             "base_flow", "base_occupancy", "base_n", "season", "ratio", "flow_ratio"]
-    df = con.sql(f"select {', '.join(cols)} from l3 order by detector_id, slot").df()
-    nulls = df.drop(columns=["rain_rule"]).isna().sum()
+    nulls = con.sql("select " + ", ".join(f"count(*) filter (where {c} is null) as {c}" for c in cols
+                                          if c != "rain_rule") + " from l3").df().iloc[0]
     if nulls.any():
         raise ValueError(f"null left in L3: {nulls[nulls > 0].to_dict()}")
-    counts.append(("L3", "rows", len(df)))
+    n = con.sql("select count(*) from l3").fetchone()[0]
+    counts.append(("L3", "rows", n))
+    L3_DIR.mkdir(parents=True, exist_ok=True)
+    con.sql(f"copy (select {', '.join(cols)} from l3 order by detector_id, slot) "
+            f"to '{L3_DIR / (o.name() + '.parquet')}' (format parquet, compression zstd)")
     con.close()
     db.unlink()
-    L3_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(L3_DIR / f"{o.name()}.parquet", index=False)
     with (CHECKS_DIR / f"l3_{o.name()}_counts.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["step", "what", "n"])
         w.writerows(counts)
     for c in counts:
         print(f"{o.name()} {c[0]:>5} {c[1]}: {c[2]:,}")
-    print(f"{o.name()}: {len(df):,} rows in {clock.time() - start:.0f} s", flush=True)
-    return df
+    print(f"{o.name()}: {n:,} rows in {clock.time() - start:.0f} s", flush=True)
 
 
 def options(args: list[str]) -> Options:
@@ -367,10 +369,6 @@ def options(args: list[str]) -> Options:
         k, v = a.split("=")
         kw[k] = int(v) if isinstance(getattr(Options, k), int) else v
     return Options(**kw)
-
-
-def load(o: Options = Options()) -> pd.DataFrame:
-    return pd.read_parquet(L3_DIR / f"{o.name()}.parquet")
 
 
 if __name__ == "__main__":

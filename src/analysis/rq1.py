@@ -37,10 +37,10 @@ MIXED_SAMPLE = 300_000
 SEED = 5001
 
 
-def slots(o: Options = Options()) -> pd.DataFrame:
+def slots(o: Options = Options(), tc_max: int = TC_MAX) -> pd.DataFrame:
     """The slots RQ1 uses, with the rain-event number of their day."""
     con = con_l3(o)
-    days = con.sql(f"""select date from t where tc_signal < {TC_MAX}
+    days = con.sql(f"""select date from t where tc_signal < {tc_max}
                        group by date having max(warn_level) > 0 or max(rain_mid) >= {RAIN_HEAVY}
                        order by date""").df()
     days["event"] = range(len(days))
@@ -48,7 +48,7 @@ def slots(o: Options = Options()) -> pd.DataFrame:
     return con.sql(f"""select detector_id, t.date, rain_district as district, latitude, longitude, road, direction,
                               n_lanes, base_speed, base_occupancy, ratio, flow_ratio, rain_mid, warn_level, days.event
                        from t left join days using (date)
-                       where tc_signal < {TC_MAX} and not interpolated""").df()
+                       where tc_signal < {tc_max} and not interpolated""").df()
 
 
 def measures(df: pd.DataFrame) -> pd.DataFrame:
