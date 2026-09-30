@@ -281,6 +281,31 @@ The rainfall sentence is what we use. Its format is identical in samples from 20
 - Bulletins are usually issued ~17 min after the period ends, occasionally later (e.g. 01:46).
   The archive can capture a bulletin up to an hour after it was issued (the file archived at 20:02 held the 19:02 bulletin).
 
+As written in the file, the sentence is followed by an HTML table, one row per district:
+
+```html
+Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfall recorded in various regions were:<br/><br/>
+<table border="0" cellspacing="0" cellpadding="0">
+  <tr><td>Islands District</td><td width="100" align="right">7 to 50&nbsp;mm;</td></tr>
+  ...
+  <tr><td>Tuen Mun</td><td width="100" align="right">1 to 13&nbsp;mm.</td></tr>
+</table>
+```
+
+Without lightning the sentence reads `Between 6:45 and 7:45 a.m., the rainfall recorded in various regions were:`.
+The lightning part names regions (`over all regions`, `within Lantau, New Territories East, Hong Kong and Kowloon`, ...).
+
+**Checked on 2024-05, 2025-07, 2025-08** (`src.clean.s3_parse`, `src.clean.s3_checks`; 2,231 bulletins, 6,818 rain rows):
+
+| Check | Result |
+|-------|--------|
+| Structure | Every file: one `<item>` with `author`, `guid`, `pubDate`, `title`, `category`, `link`, `description`; nothing absent or empty. `category` is always `R`. Every rainfall sentence has one of the two forms above, every row `<District> <n> to <n> mm` or `<District> <n> mm` |
+| Times | `title`, `pubDate` (+ 8 h) and the time in `guid` always agree. Updated at HH:02 in 2,215 bulletins; also HH:06 (12), :04 (2), :00 and :11 (1 each, 2025-07-18). Fetched 0–63 min after the update, median 4–5 min |
+| Hours | Every hour has a bulletin except 2025-07-18 18:00 (the 17:11 bulletin was still current at 18:06), 2025-08-18 23:00 (the file fetched 23:05 held the 22:02 bulletin again, see below) and 2025-08-23 12:00 (no file fetched between 11:05 and 13:05) |
+| Same bulletin twice | 2025-08-18 22:02 is in two files; the descriptions differ only in the weather icon (`pic63.png` → `pic64.png`) |
+| Rain period | Always HH:45 to HH:45, 60 min, ending 10–29 min before the update (one 75 min: the 17:00 bulletin of 2025-07-18 repeats the 16:02 bulletin's period, with the same values) |
+| Districts | 18 names in the HKO spelling (above); none twice in one bulletin; `low` ≤ `high`; single values (`high` absent) in 218 rows. 812 bulletins have rain, 129 of them in all 18 districts |
+
 ---
 
 ## S4. Rainstorm warning signals (`rstorm.dat`)

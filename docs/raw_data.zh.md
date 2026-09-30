@@ -266,6 +266,31 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 - 公告通常在时段结束后约 17 分钟发布，偶尔更晚（例如 01:46）。
   存档可能在公告发布后最多一小时才抓到它：20:02 存档的文件里是 19:02 的公告。
 
+文件里这句话后面其实是一个 HTML 表格，每个区一行：
+
+```html
+Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfall recorded in various regions were:<br/><br/>
+<table border="0" cellspacing="0" cellpadding="0">
+  <tr><td>Islands District</td><td width="100" align="right">7 to 50&nbsp;mm;</td></tr>
+  ...
+  <tr><td>Tuen Mun</td><td width="100" align="right">1 to 13&nbsp;mm.</td></tr>
+</table>
+```
+
+没有闪电时，句子写作 `Between 6:45 and 7:45 a.m., the rainfall recorded in various regions were:`。
+闪电部分写的是地区（`over all regions`、`within Lantau, New Territories East, Hong Kong and Kowloon` 等）。
+
+**在 2024-05、2025-07、2025-08 上的检查**（`src.clean.s3_parse`、`src.clean.s3_checks`；2,231 份公告，6,818 行雨量）：
+
+| 检查 | 结果 |
+|-------|--------|
+| 结构 | 每个文件都只有一个 `<item>`，包含 `author`、`guid`、`pubDate`、`title`、`category`、`link`、`description`；没有缺失或为空的。`category` 总是 `R`。每个雨量句子都是上面两种写法之一，每行都是 `<区名> <数> to <数> mm` 或 `<区名> <数> mm` |
+| 时间 | `title`、`pubDate`（+8 小时）和 `guid` 里的时间总是一致。2,215 份在 HH:02 更新；另有 HH:06（12 份）、:04（2 份）、:00 和 :11（各 1 份，都在 2025-07-18）。抓取时间在更新后 0–63 分钟，中位数 4–5 分钟 |
+| 小时 | 每个小时都有公告，除了 2025-07-18 18 时（18:06 抓到的仍是 17:11 的公告）、2025-08-18 23 时（23:05 抓到的文件又是 22:02 的公告，见下）和 2025-08-23 12 时（11:05 到 13:05 之间没有抓取任何文件） |
+| 同一份公告出现两次 | 2025-08-18 22:02 的公告在两个文件里；两份 description 只有天气图标不同（`pic63.png` → `pic64.png`） |
+| 雨量时段 | 总是 HH:45 到 HH:45，60 分钟，在更新前 10–29 分钟结束（有一份是 75 分钟：2025-07-18 17:00 的公告沿用了 16:02 公告的时段，数值也相同） |
+| 区 | 18 个区名，天文台写法（见上）；同一份公告里没有重复的区；`low` ≤ `high`；只有一个数值（没有 `high`）的有 218 行。812 份公告有雨量，其中 129 份 18 个区都有雨 |
+
 ---
 
 ## S4. 暴雨警告信号（`rstorm.dat`）

@@ -89,6 +89,31 @@ def test_s1_parse_raises_on_unknown_or_repeated_element():
         parse(S1_XML.replace(b"<speed>52</speed>", b"<speed>52</speed><speed>53</speed>"), "t")
 
 
+S3_RAIN = ('</p>\nBetween 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfall recorded in '
+           'various regions were:<br/><br/>    <table border="0" cellspacing="0" cellpadding="0">\n'
+           '    <tr><td>Islands District</td><td width="100" align="right">7 to 50&nbsp;mm;</td></tr>\n'
+           '    <tr><td>Tuen Mun</td><td width="100" align="right">1&nbsp;mm.</td></tr>\n    </table><br/>')
+
+
+def test_s3_rain_rows_as_written():
+    from src.clean.s3_parse import rain_rows
+    assert rain_rows(S3_RAIN, "t") == [("6:45 and 7:45 a.m.", "Islands District", "7", "50"),
+                                       ("6:45 and 7:45 a.m.", "Tuen Mun", "1", None)]
+    no_lightning = S3_RAIN.replace("lightning was detected over all regions. The", "the")
+    assert rain_rows(no_lightning, "t") == rain_rows(S3_RAIN, "t")
+    assert rain_rows("<p>At 8 a.m. at the Hong Kong Observatory</p>", "t") == []
+
+
+def test_s3_rain_rows_raise_on_other_forms():
+    from src.clean.s3_parse import rain_rows
+    with pytest.raises(ValueError, match="another form"):
+        rain_rows(S3_RAIN.replace("were:", "was:"), "t")
+    with pytest.raises(ValueError, match="unexpected text"):
+        rain_rows(S3_RAIN.replace("1&nbsp;mm.", "Trace&nbsp;mm."), "t")
+    with pytest.raises(ValueError, match="2 times"):
+        rain_rows(S3_RAIN + S3_RAIN, "t")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):
