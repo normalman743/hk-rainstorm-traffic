@@ -114,6 +114,31 @@ def test_s3_rain_rows_raise_on_other_forms():
         rain_rows(S3_RAIN + S3_RAIN, "t")
 
 
+S13_XML = ('<?xml version="1.0" encoding="UTF-8"?><list><message><INCIDENT_NUMBER>IN-24-01</INCIDENT_NUMBER>'
+           '<LOCATION_EN>Trade & Exhibition Centre &amp; &#26481;</LOCATION_EN><DISTRICT_EN></DISTRICT_EN>'
+           '<ID>1</ID></message></list>').encode()
+
+
+def test_s13_parse_keeps_bare_ampersand_as_written():
+    from src.clean.s13_parse import FIELDS, parse
+    rows, n_amp = parse(S13_XML, "t")
+    assert n_amp == 1 and len(rows) == 1
+    row = dict(zip(["position", *FIELDS], rows[0]))
+    assert row["LOCATION_EN"] == "Trade & Exhibition Centre & 東"
+    assert (row["INCIDENT_NUMBER"], row["DISTRICT_EN"], row["ID"], row["LATITUDE"]) == ("IN-24-01", "", "1", None)
+    assert parse(S13_XML.replace(b"Trade & ", b"Trade "), "t")[1] == 0
+
+
+def test_s13_parse_raises_on_other_errors():
+    from src.clean.s13_parse import parse
+    with pytest.raises(ValueError, match="t: "):
+        parse(S13_XML.replace(b"&amp;", b"&nbsp;"), "t")
+    with pytest.raises(ValueError, match="unexpected <item>"):
+        parse(S13_XML.replace(b"<message>", b"<item>").replace(b"</message>", b"</item>"), "t")
+    with pytest.raises(ValueError, match="<ID> twice"):
+        parse(S13_XML.replace(b"<ID>1</ID>", b"<ID>1</ID><ID>2</ID>"), "t")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):

@@ -453,7 +453,20 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 数据集 | [特别交通消息（第二代）](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2) |
 | 实时网址 | `https://www.td.gov.hk/en/special_news/trafficnews.xml` |
 | 结构 | `<list>` 里若干 `<message>`，字段见 XSD：`INCIDENT_NUMBER`、`INCIDENT_HEADING_EN/CN`、`INCIDENT_DETAIL_EN/CN`、`LOCATION_EN/CN`\*、`DISTRICT_EN/CN`\*、`DIRECTION_EN/CN`\*、`ANNOUNCEMENT_DATE`（`YYYY-MM-DDTHH:MM:SS`）、`INCIDENT_STATUS_EN/CN`（`NEW` / `UPDATED` / `CLOSED`）、`NEAR_LANDMARK_EN/CN`\*、`BETWEEN_LANDMARK_EN/CN`\*、`ID`、`CONTENT_EN/CN`、`LATITUDE`\*、`LONGITUDE`\*（\* 可选） |
-| 实测 | 2025-08 有 3,390 份快照（每天最多 166 份）。每份快照是当时仍有效的消息列表（一份样本只有 1 条消息），所以同一条消息会在多份快照中重复出现。可选字段经常缺失（那份样本没有区，也没有经纬度） |
+| 快照 | 2024-05 / 2025-07 / 2025-08 分别抓取 2,837 / 3,104 / 3,388 次（每天都有；每天最多 166 次），去重后 1,737 / 2,020 / 2,151 个文件。XSD 允许一个列表，但**每个文件恰好只有一条 `<message>`**，所以归档看不到某一时刻所有仍有效的消息。抓取间隔不规则（同一天内最长间隔 460–536 分钟），两次抓取之间被替换掉的消息不在归档里 |
+
+**已在 2024-05、2025-07、2025-08 上检查**（`src.clean.s13_parse`、`src.clean.s13_checks`；5,908 行消息，4,759 个不同 ID）：
+
+| 检查 | 结果 |
+|------|------|
+| 结构 | 根元素 `<list>`，子元素 `<message>`，只有 XSD 里的元素，没有重复元素。2024-05 有 5 个文件（5 月 16 日、25 日）不是合法 XML：`Kowloonbay International Trade & Exhibition Centre` 里的 `&` 没有转义。解析时按 `&` 读入，这些文件列在 `data/interim/checks/s13_bare_ampersands.csv` |
+| 缺失 / 空 | 没有元素缺失：可选字段都在，只是为空。`LATITUDE`、`LONGITUDE` 全部为空；`DISTRICT` 只有一行不为空（`Yau Tsim Mong`，2025-07）。另外为空的有：`DIRECTION` 324 / 505 / 557 行，`NEAR_LANDMARK` 383 / 520 / 535，`BETWEEN_LANDMARK` 1,686 / 1,953 / 2,132，`LOCATION` 84 / 89 / 118，`CONTENT` 一次（ID 118838，标题 `Highwind Incident`）。EN 和 CN 总是同时为空或同时不为空 |
+| 格式 | `ANNOUNCEMENT_DATE` 全部是 `YYYY-MM-DDTHH:MM:SS`；`ID` 全部是整数 |
+| 同一 ID 的多个版本 | 一个 ID 出现在 1 个文件（3,611 个 ID）、2 个（1,147）或 3 个（1）。ID 关闭时 `ANNOUNCEMENT_DATE` 不变：1,147 组 (ID, `ANNOUNCEMENT_DATE`) 出现在两个文件里，其中 1,144 组只有 `INCIDENT_STATUS` 变了。另外 3 组关闭时还改了一个字段：ID 119051 的 `DIRECTION` 从 `Chung Hom Kok Road` 变成空；ID 119481 的 `INCIDENT_DETAIL` 从 `Fallen Tree` 变成 `Tree trimming`；ID 120623 的 `LOCATION` 从空变成 `Special traffic arrangement may be implemented at Lok Ma Chau Control Point`。按时间排序，一个 ID 的状态只有这几种：`NEW`、`UPDATED`、`CLOSED`、`UPDATED > CLOSED`（359 / 376 / 401）、`NEW > CLOSED`（2 / 3 / 5）；`CLOSED` 之后不会再有别的状态 |
+| 事件 | 事件每更新一次就换一个新 `ID`：一个 `INCIDENT_NUMBER` 有 1 / 2 / 3 / 4 / 5 个及以上 ID 的事件分别是 458 / 1,429 / 226 / 62 / 68 个 |
+| ID 重复使用 | 2025-07-12/13 有两个 ID 各对应两个事件。ID 118305 是 IN-25-04136（Sai Yee Street 排队，07-12 21:40 公布）和 IN-25-04137（Lion Rock Tunnel 事故，07-13 07:59）。ID 118306 是 IN-25-04137，`CONTENT` 为 `DR Testing`（07-12 21:56），又是 IN-25-04097（Gascoigne Road，07-13 08:06）。IN-25-04136 还包括 Lung Cheung Road 的一宗事故（ID 118303、118304），IN-25-04137 还包括 Lion Rock Tunnel 事故 |
+| 没出现过的 ID | 每月最小和最大 ID 之间，2024-05 有 513 个整数、2025-08 有 331 个整数从未出现。2025-07 的范围不能直接比较：2025-07-12 22:13 / 22:16 抓到了两条旧消息（ID 99753 公布于 2024-07-06，ID 116872 公布于 2025-06-20）。运输署是否连续编号不清楚 |
+| 时间 | 从公布到第一次抓取：中位数 8 分钟；超过 60 分钟的有 27 / 65 / 70 条。两条消息在 `ANNOUNCEMENT_DATE` 之前就被抓到了：ID 96671（公布时间 2024-05-11 23:19，抓取时间 12:17；同一事件的上一个 ID 96668 公布于 11:19，下一个 ID 96685 公布于 15:36），以及 ID 120705（公布时间 2025-08-15 22:00，抓取时间 21:56；内容写着 "announces at 9:50 pm"） |
 
 ### N2. 自动气象站逐小时雨量（`hourlyRainfall.php`）
 
