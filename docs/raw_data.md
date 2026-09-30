@@ -194,7 +194,7 @@ One reading = one lane of one detector in one 30-second period (~4,200 readings 
 | period | `period_from` | time | – | Timestamp of data period starts | Start of the 30-s period, `HH:MM:00` or `HH:MM:30` |
 | period | `period_to` | time | – | Timestamp of data period ends | Always `period_from` + 30 s (redundant) |
 | detector | `detector_id` | string | – | Reference ID for AID | e.g. `AID01101`, `TDS90070`, `TDSIEC10001`. Joins to S2 `AID_ID_Number` |
-| detector | `direction` | string | – | Direction of AID | e.g. `South East`; same as S2 `Direction` |
+| detector | `direction` | string | – | Direction of AID | e.g. `South East`; the 8 values of S2 `Direction`, and `North ` / `South ` with a trailing space (3 detectors each). One direction per detector within a month. **Not always the S2 `Direction`** (see quirks) |
 | lane | `lane_id` | string | – | Reference ID for Lane of AID | 7 labels: `Fast Lane` (37 %), `Slow Lane` (35 %), `Middle Lane` (20 %), `Middle Lane 1`–`4` (wide roads) |
 | lane | `speed` | integer | km/h | Average speed of lane | 0–300, median 70. **When `volume = 0` it is a placeholder** (see quirks) |
 | lane | `occupancy` | integer | % | Occupancy of lane | Share of the period a vehicle is over the detector. 0–100; 37 % of readings are 0; also `-1` |
@@ -214,6 +214,7 @@ One reading = one lane of one detector in one 30-second period (~4,200 readings 
 | Truncated files | A few files end mid-document: 3 in the three months (fetched 2025-07-17 14:18, 2025-07-29 10:28, 2025-08-11 02:00). Each is cut after exactly 393,216 or 196,608 bytes (384 / 192 KiB) and is a byte-for-byte prefix of a complete file fetched 1–3 minutes away | Skip them |
 | Same lane twice | TDS90026 lists two lanes called `Middle Lane` (direction `West`), with different values, in nearly every file of 2025-07 and 2025-08 (49,590 files). AID02215 lists `Fast Lane` and `Slow Lane` twice in one period (2024-05-30 08:25:00) | The lanes cannot be told apart by `lane_id`; open question |
 | Direction missing | `<direction>` is absent for AID09115, AID09116, AID90008 and AID90009 (four new detectors on Tai Po Road, Sha Tin) in every file up to 2025-07-25 10:34:30 (268,072 readings; AID09115 from the start of the 2025-07 bundle, the others from 07-03). From 10:36:00 it is present: `East`, `East`, `West`, `West`. S2 lists them only from its 2025-10 version, with the same directions. No other S1 field is ever absent or empty, and every number, date and time is well-formed | Direction from S2 2025-10 or the later S1 files; open question |
+| Direction ≠ S2 | Against S2 2024-02 and 2025-10 (same result for both), `direction` differs from `Direction` for 139 detectors in 2024-05 and 142 in 2025-07 / 2025-08: 123–126 by 45° (e.g. AID04107 `North East`, S2 `East`), 8 by 90°, 1 by 135°, 1 by 180° (AID10120 `North East`, S2 `South West`, "Shenzhen Bay Bridge - Northbound"); 6 only by the trailing space (AID05114/5115/5117 `North `, AID05210/5221/5222 `South `). `data/interim/checks/versions_directions.csv` | Which one to use is open |
 | Schema change | `<s.d.>` appears from ~18 Nov 2021 (data dictionary `20211118`) | `sd` missing earlier |
 | Placeholder speed | With `volume = 0`, `speed` is 70 / 80 / 100 / 50 / 110 (the speed limit) and `s.d.` = 0 in 99.9 % of cases | Not a measurement |
 | Contradictions | `speed = 0` with `volume > 0`: 5,991 readings; `occupancy = -1`: 60 | Cleaning rule needed |
@@ -244,6 +245,19 @@ The figures for the three months (2024-05, 2025-07, 2025-08; 332.9 M readings) c
 | `Latitude`, `Longitude` | float | WGS84 | 22.25–22.51 N, 113.94–114.27 E |
 | `Direction` | string | Traffic direction | 8 values: `West` 127, `North West` 117, `South East` 114, `East` 108, `North East` 105, `South` 85, `South West` 79, `North` 72 |
 | `Rotation` | integer | Bearing in degrees for map arrows | 0–355 |
+
+**Checked on all 8 versions** (`src.clean.versions_parse` → `data/interim/l1/s2/<version>.parquet`,
+`src.clean.versions_checks` → `data/interim/checks/versions_*.csv`):
+
+| Check | Result |
+|-------|--------|
+| Files | Every version: UTF-8 with BOM, comma-separated, CRLF, the same 11 columns; every row has 11 fields; no value empty. The live copy (`data/raw/td/traffic_speed_volume_occ_info.csv`) is byte-identical to 2026-04 |
+| Values | `AID_ID_Number` unique in every version. `Easting`, `Northing`, `Rotation` always integers, `Latitude`, `Longitude` always decimals |
+| Spaces | `Road_EN` ends with a space (never starts with one) in every row of 2021-08 .. 2021-11 and 2024-02; in 582 of 614 (2021-12), 647 of 700 (2022-03), 786 of 790 (2025-10), 786 of 807 (2026-04): the detectors added later have none. `Road_TC`, `Road_SC`: 4–7 fewer rows with a leading or trailing space. `Direction` `South ` with a trailing space in 2021-11 .. 2022-03 (TDS30004, TDS30005; also TDS30002 in 2022-03) |
+| Spellings | `District` in 2022-03 only: `Yeun Long` (21 rows), `Island` (2), `Kwai Chung` (1). `Central and Western` (TDSIEC10001, from 2024-02) beside `Central & Western` |
+| IDs with slashes | 2022-03 only: 54 IDs are written with slashes (`TDS/IEC/20001`); 2024-02 has the same 54 without them (`TDSIEC20001`), same road names apart from the trailing space, 53 at the same coordinates. S1 of the three months has no ID with a slash |
+| Changes | 2021-08 → 2021-09 → 2021-11 → 2021-12 → 2022-03: only additions (79, 147, 36, 86) and 2, 13 changed rows. 2022-03 → 2024-02: 141 added (54 of them the renamed IDs above), 55 removed, 231 changed (`Road_EN` 177, 100 of them only the trailing space; `Rotation` 26; `Direction` 20; `Latitude`/`Longitude` 17; `District` 16). 2024-02 → 2025-10: 4 added (AID09115, AID09116, AID90008, AID90009). 2025-10 → 2026-04: 17 added (AID09301 .. AID09409). Nothing else changed |
+| Against S1 | Every detector of S1 2024-05 is in 2024-02; the 4 detectors added in 2025-10 report in S1 2025-07 / 2025-08, so for those months 2024-02 lacks them. No S1 detector is missing from every version. `Direction` differs from S1 `direction` for 139–142 detectors (S1 quirks) |
 
 ---
 
@@ -414,8 +428,11 @@ Converting `Value` with a plain numeric cast turns `Trace` into NaN; it should b
 
 ## Optional sources
 
-Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not yet parsed.
-"Observed" figures here come from one monthly bundle (2025-08) unless stated otherwise.
+Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)). Parsed to L1
+(`data/interim/l1/`) and checked for 2024-05, 2025-07 and 2025-08: S9, S11, S13, S7; S10 and
+S14 in all their versions. S12 is not parsed yet.
+"Observed" figures here come from one monthly bundle (2025-08) unless stated otherwise;
+"Checked" rows give the figures of the three months.
 
 ### S9. Smart-lamppost detector readings (`rawSpeedVol_SLP-all.xml`)
 
@@ -435,7 +452,8 @@ Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not
 | URL | `https://static.data.gov.hk/td/traffic-data-slp/info/traffic_speed_volume_occ_info-slp.csv` |
 | Columns | Same 11 as S2 (`AID_ID_Number`, `District`, `Road_EN`, …, `Rotation`) |
 | Versions | Only two archived. **Their encodings differ**: 2023-12 (13 rows) is **UTF-16 with BOM, tab-separated**; 2024-01 (20 rows) is UTF-8 with BOM, comma-separated. Read by BOM, not with a fixed encoding |
-| Observed | Districts Kwun Tong, Wan Chai, Yau Tsim Mong. `Road_EN` ends with the ID in brackets. AID20051 has `Direction` = `East` while its `Road_EN` says "Westbound" (`Rotation` 270) |
+| Observed | Districts Kwun Tong, Wan Chai, Yau Tsim Mong. `Road_EN` ends with the ID in brackets |
+| Checked (both versions; `src.clean.versions_parse`, `src.clean.versions_checks`) | Every row has the header's 11 fields; nothing empty, no leading or trailing space; IDs unique; coordinates and `Rotation` well-formed. 2024-01 has no final newline. 2023-12 → 2024-01: 7 added (AID20054 .. AID20060), none removed, **`Direction` changed for all 13** (e.g. AID20051 `East` → `West`, its `Road_EN` says "Westbound"), `Rotation` for 7, `Road_EN` for 1. In 2023-12 every `Direction` contradicts the "…bound" of `Road_EN`; in 2024-01 none does. Every S9 detector of the three months is in 2024-01, and S9 `direction` equals its `Direction` for all of them |
 
 ### S11. Segment speeds (`irnAvgSpeed-all.xml`)
 
@@ -445,7 +463,7 @@ Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not
 | Live URL | `https://resource.data.one.gov.hk/td/traffic-detectors/irnAvgSpeed-all.xml` |
 | Structure | `<segment_speed_list>`: `date`, `time`, `irn_version`, then `<segments>` with one `<segment>` each: `segment_id`, `speed` (float, km/h, "current average speed"), `valid` (`Y` online / `N` offline) |
 | Observed | 21,414 snapshots in 2025-08 (~1–2 min apart), 7.9 GB uncompressed per month; 4,405 segments per file, `valid = N` on 41 of them in one sample. File archived 17:02 held `time` 16:55. `irn_version` was `20221210` |
-| Link | `segment_id` is `ROUTE_ID` of the S12 road centreline: 4,395 of 4,405 ids of a 2025-08 snapshot are in the 2025-08 CENTERLINE layer (the other 10 not yet checked against older versions) |
+| Link | `segment_id` is `ROUTE_ID` of the S12 road centreline. Every segment of S11 2024-05 is in the S12 version of 2024-05-28. Of 2025-07 / 2025-08, 9 / 10 segments are not in the S12 version of the same month (2025-07-30, 2025-08-29) but are in older ones: 56821, 60813, 62346, 63794, 63796, 63797, 8797 last in 2024-06-05; 261807 in 2025-04-28; 105473 in 2025-06-26; 59042 in 2025-07-30. S11 keeps reporting them (62346 and 63797 until 2025-08-06, the others all month). Checked with an ad-hoc read of every S12 version's CENTERLINE `ROUTE_ID` (S12 is not parsed yet) |
 | Checked (2024-05, 2025-07, 2025-08; 253.7 M segment rows) | `src.clean.s11_parse`, `src.clean.s11_checks`. 21,619 / 17,415 / 18,674 distinct files. 3 are truncated (two cut at 64 KiB, one missing only the closing `segment_speed_list>`); each is a byte prefix of the complete file with the same time and is skipped. One `date`, `time`, `irn_version` per file; `irn_version` always `20221210`; each (`date`, `time`) in one complete file only. Nothing absent or empty; `segment_id` always digits, `speed` a decimal number, `valid` `Y` or `N`; no segment twice in a file |
 | Times | `time` is HH:MM:00 at an odd minute (every 2 min), except 2 files (2025-07-02 02:14, 2025-08-01 22:16; the next file is 02:15 / 22:17). Of the 720 odd-minute times of a day, missing: 704 (3.2 %) in 2024-05, 4,909 (22.0 %) in 2025-07, 3,651 (16.4 %) in 2025-08. Longest gaps: 120 min (2025-08-23 19:25 → 21:25), 62 min (2025-08-31 01:47 → 02:49), 50 min (2024-05-30 19:59 → 20:49); all others ≤ 18 min. A file is fetched 4–12 min after its `time` (median 6) |
 | Segments | 4,376 per file until 2024-05-08 17:21, then 4,388 (12 added, 282434 .. 282486). 4,413 until 2025-07-29 11:11, then 4,405 (8 removed). On 2025-08-06: 4,405 → 4,404 → 4,403 → 4,391 (segments removed after 15:55, 16:05, 16:11). 4,414 segment IDs over the three months |
@@ -458,6 +476,15 @@ Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not
 4,255 rows × 2 columns (2023-09): `irn_id` (segment ID) and `ucase(route)` (the **route number** the
 segment belongs to; 174 values, e.g. `9` has 423 segments). No coordinates: the geometry is S12.
 6 versions on disk (2021-08 .. 2023-09).
+
+**Checked on all 6 versions** (`src.clean.versions_parse`, `src.clean.versions_checks`):
+
+| Check | Result |
+|-------|--------|
+| Files | UTF-8 without BOM, comma-separated; line ends CRLF (2021-08, 2022-03, 2022-10) or LF (2021-11, 2022-02, 2023-09). Every row has 2 fields; nothing empty, no leading or trailing space; the segment ID is always digits and unique in every version |
+| Headers | **Three headers**: `Road Name,Segment ID` (2021-08: 63 rows, all `Route 8`), `route,irn_id` (2021-11 .. 2022-10), `irn_id,ucase(route)` (2023-09; columns swapped and renamed). Every `route` value (2021-11 .. 2022-10) is already upper case |
+| Rows | 63, 2,684, 3,719, 3,831, 4,135, 4,255. Each version adds segments (2,621, 1,039, 112, 334, 120); removed only 4 (2022-02) and 30 (2022-10); `route` changed for 277 segments 2022-03 → 2022-10. The 63 segments of 2021-08 are all in 2021-11. 2022-10 → 2023-09 (headers differ, so not compared by the check; by hand, `route` against `ucase(route)`): all 4,135 segments kept, 4,128 with the same route, 7 changed (e.g. 163685 `SHENZHEN BAY BRIDGE` → `10`, 276283 `UNNAMED ROAD` → `CASTLE PEAK ROAD - CHAU TAU`) |
+| Against S11 | The newest version (2023-09) lacks 136 / 162 / 156 of the S11 segments of 2024-05 / 2025-07 / 2025-08; 135 / 161 / 155 are in no version (e.g. 104153, 104169, 104171). No version is later than the three months, so these segments have no route in S14 |
 
 ### S12. Road network, 2nd generation (`RdNet_IRNP.gdb.zip`)
 

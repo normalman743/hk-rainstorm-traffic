@@ -180,7 +180,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | 时段 | `period_from` | 时间 | – | Timestamp of data period starts | 30 秒时段的开始时间，`HH:MM:00` 或 `HH:MM:30` |
 | 时段 | `period_to` | 时间 | – | Timestamp of data period ends | 永远是 `period_from` + 30 秒（冗余字段） |
 | 探测器 | `detector_id` | 字符串 | – | Reference ID for AID | 例如 `AID01101`、`TDS90070`、`TDSIEC10001`。对应 S2 的 `AID_ID_Number` |
-| 探测器 | `direction` | 字符串 | – | Direction of AID | 例如 `South East`；与 S2 的 `Direction` 相同 |
+| 探测器 | `direction` | 字符串 | – | Direction of AID | 例如 `South East`；取值是 S2 `Direction` 的 8 种，另有带尾部空格的 `North ` / `South `（各 3 个探测器）。同一探测器在一个月内方向不变。**不一定等于 S2 的 `Direction`**（见数据问题） |
 | 车道 | `lane_id` | 字符串 | – | Reference ID for Lane of AID | 7 种：`Fast Lane` 快线（37%）、`Slow Lane` 慢线（35%）、`Middle Lane` 中线（20%），以及宽路上的 `Middle Lane 1`–`4` |
 | 车道 | `speed` | 整数 | km/h | Average speed of lane | 平均车速。0–300，中位数 70。**`volume = 0` 时是填充值**（见下方数据问题） |
 | 车道 | `occupancy` | 整数 | % | Occupancy of lane | 占用率：时段内有车压在探测器上的时间比例。0–100；37% 的读数是 0；另有 `-1` |
@@ -200,6 +200,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | 截断文件 | 少数文件在中途被截断：三个月里有 3 个（抓取于 2025-07-17 14:18、2025-07-29 10:28、2025-08-11 02:00）。每个都正好断在 393,216 或 196,608 字节（384 / 192 KiB），并且和相隔 1–3 分钟抓取的一个完整文件的开头逐字节相同 | 跳过这些文件 |
 | 同一车道出现两次 | TDS90026 在 2025-07 和 2025-08 几乎每个文件里（49,590 个）都列出两条叫 `Middle Lane` 的车道（方向 `West`），数值不同。AID02215 在一个时段（2024-05-30 08:25:00）把 `Fast Lane` 和 `Slow Lane` 各列了两次 | 靠 `lane_id` 分不开这两条车道；待定问题 |
 | 方向缺失 | AID09115、AID09116、AID90008、AID90009（沙田大埔公路上的四个新探测器）在 2025-07-25 10:34:30 之前的每个文件里都没有 `<direction>`（268,072 条读数；AID09115 从 2025-07 打包文件一开始就这样，另外三个从 07-03 起）。从 10:36:00 起有了：`East`、`East`、`West`、`West`。S2 从 2025-10 版本才列出这四个探测器，方向相同。S1 其他字段从来没有缺失或为空，所有数字、日期和时间格式都正确 | 方向可取自 S2 2025-10 版本或之后的 S1 文件；待定问题 |
+| 方向与 S2 不同 | 对照 S2 2024-02 和 2025-10 两个版本（结果相同），`direction` 与 `Direction` 不同的探测器：2024-05 有 139 个，2025-07 / 2025-08 各 142 个。其中 123–126 个差 45°（例如 AID04107 `North East`，S2 为 `East`），8 个差 90°，1 个差 135°，1 个差 180°（AID10120 `North East`，S2 为 `South West`，"Shenzhen Bay Bridge - Northbound"）；6 个只差尾部空格（AID05114/5115/5117 `North `，AID05210/5221/5222 `South `）。见 `data/interim/checks/versions_directions.csv` | 用哪一个待定 |
 | 结构变化 | `<s.d.>` 从约 2021 年 11 月 18 日起才出现（数据字典版本 `20211118`） | 更早的数据没有 `sd` |
 | 车速填充值 | `volume = 0` 时，`speed` 是 70 / 80 / 100 / 50 / 110（即限速），且 99.9% 的情况下 `s.d.` = 0 | 不是测量值 |
 | 自相矛盾 | `speed = 0` 但 `volume > 0`：5,991 条；`occupancy = -1`：60 条 | 需要清洗规则 |
@@ -229,6 +230,19 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | `Latitude`、`Longitude` | 小数 | WGS84 经纬度 | 北纬 22.25–22.51，东经 113.94–114.27 |
 | `Direction` | 字符串 | 行车方向 | 8 种：`West` 127、`North West` 117、`South East` 114、`East` 108、`North East` 105、`South` 85、`South West` 79、`North` 72 |
 | `Rotation` | 整数 | 方向角度（度），用于在地图上画箭头 | 0–355 |
+
+**已检查全部 8 个版本**（`src.clean.versions_parse` → `data/interim/l1/s2/<版本>.parquet`，
+`src.clean.versions_checks` → `data/interim/checks/versions_*.csv`）：
+
+| 检查 | 结果 |
+|-------|--------|
+| 文件 | 每个版本都是带 BOM 的 UTF-8、逗号分隔、CRLF，11 列相同；每行 11 个字段；没有空值。实时副本（`data/raw/td/traffic_speed_volume_occ_info.csv`）与 2026-04 版本逐字节相同 |
+| 取值 | `AID_ID_Number` 在每个版本内互不重复。`Easting`、`Northing`、`Rotation` 都是整数，`Latitude`、`Longitude` 都是小数 |
+| 空格 | `Road_EN` 末尾有空格（开头从来没有）：2021-08 至 2021-11 和 2024-02 每一行都有；2021-12 为 614 行中 582 行，2022-03 为 700 行中 647 行，2025-10 为 790 行中 786 行，2026-04 为 807 行中 786 行——后来新增的探测器没有。`Road_TC`、`Road_SC` 首尾有空格的行少 4–7 行。`Direction` 在 2021-11 至 2022-03 有带尾部空格的 `South `（TDS30004、TDS30005；2022-03 还有 TDS30002） |
+| 拼写 | 只在 2022-03 出现的 `District`：`Yeun Long`（21 行）、`Island`（2 行）、`Kwai Chung`（1 行）。从 2024-02 起 `Central and Western`（TDSIEC10001）与 `Central & Western` 并存 |
+| 带斜杠的编号 | 只在 2022-03：54 个编号带斜杠（`TDS/IEC/20001`）；2024-02 里是同样 54 个去掉斜杠的编号（`TDSIEC20001`），除尾部空格外道路名相同，53 个坐标相同。三个月的 S1 里没有带斜杠的编号 |
+| 变化 | 2021-08 → 2021-09 → 2021-11 → 2021-12 → 2022-03：只有新增（79、147、36、86 个）以及 2、13 行改动。2022-03 → 2024-02：新增 141 个（其中 54 个是上面改名的编号），删除 55 个，改动 231 行（`Road_EN` 177 行，其中 100 行只差尾部空格；`Rotation` 26；`Direction` 20；`Latitude`/`Longitude` 17；`District` 16）。2024-02 → 2025-10：新增 4 个（AID09115、AID09116、AID90008、AID90009）。2025-10 → 2026-04：新增 17 个（AID09301 .. AID09409）。没有其他改动 |
+| 对照 S1 | S1 2024-05 的探测器都在 2024-02 里；2025-10 新增的 4 个探测器在 S1 2025-07 / 2025-08 已有数据，所以对这两个月 2024-02 缺这 4 个。没有哪个 S1 探测器在所有版本里都找不到。`Direction` 与 S1 `direction` 不同的探测器有 139–142 个（见 S1 数据问题） |
 
 ---
 
@@ -397,7 +411,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 
 ## 可选来源
 
-2024–2025 年已下载（见"数据清单"），尚未解析。除特别说明外，这里的"实测"数字来自一个月度打包文件（2025-08）。
+2024–2025 年已下载（见"数据清单"）。已解析成 L1（`data/interim/l1/`）并检查了 2024-05、2025-07、2025-08 的：S9、S11、S13、S7；S10 和 S14 检查了全部版本。S12 尚未解析。除特别说明外，这里的"实测"数字来自一个月度打包文件（2025-08）；"检查"行给出的是三个月的数字。
 
 ### S9. 智能灯柱探测器读数（`rawSpeedVol_SLP-all.xml`）
 
@@ -417,7 +431,8 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 网址 | `https://static.data.gov.hk/td/traffic-data-slp/info/traffic_speed_volume_occ_info-slp.csv` |
 | 列 | 与 S2 相同的 11 列（`AID_ID_Number`、`District`、`Road_EN`、…、`Rotation`） |
 | 版本 | 存档只有两个。**两者编码不同**：2023-12（13 行）是**带 BOM 的 UTF-16、制表符分隔**；2024-01（20 行）是带 BOM 的 UTF-8、逗号分隔。要按 BOM 判断编码，不能写死 |
-| 实测 | 所在区：观塘、湾仔、油尖旺。`Road_EN` 末尾带方括号里的编号。AID20051 的 `Direction` 是 `East`，但 `Road_EN` 写的是 "Westbound"（`Rotation` 270） |
+| 实测 | 所在区：观塘、湾仔、油尖旺。`Road_EN` 末尾带方括号里的编号 |
+| 已检查（两个版本；`src.clean.versions_parse`、`src.clean.versions_checks`） | 每行都有表头的 11 个字段；没有空值，没有首尾空格；编号不重复；坐标和 `Rotation` 格式正确。2024-01 文件末尾没有换行。2023-12 → 2024-01：新增 7 个（AID20054 .. AID20060），没有删除，**13 个的 `Direction` 全部改了**（例如 AID20051 `East` → `West`，其 `Road_EN` 写的是 "Westbound"），7 个改了 `Rotation`，1 个改了 `Road_EN`。2023-12 里每个 `Direction` 都与 `Road_EN` 中的 "…bound" 矛盾；2024-01 里没有矛盾。三个月的 S9 探测器都在 2024-01 里，而且 S9 的 `direction` 与其 `Direction` 全部一致 |
 
 ### S11. 路段车速（`irnAvgSpeed-all.xml`）
 
@@ -427,7 +442,7 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 | 实时网址 | `https://resource.data.one.gov.hk/td/traffic-detectors/irnAvgSpeed-all.xml` |
 | 结构 | `<segment_speed_list>`：`date`、`time`、`irn_version`，然后 `<segments>` 里每个 `<segment>` 有 `segment_id`、`speed`（小数，km/h，"current average speed"）、`valid`（`Y` 在线 / `N` 离线） |
 | 实测 | 2025-08 有 21,414 份快照（相隔约 1–2 分钟），每月解压后 7.9 GB；每个文件 4,405 个路段，一份样本中 41 个 `valid = N`。17:02 存档的文件 `time` 是 16:55。`irn_version` 为 `20221210` |
-| 关联 | `segment_id` 就是 S12 道路中心线的 `ROUTE_ID`：一份 2025-08 快照的 4,405 个编号中，4,395 个能在 2025-08 的 CENTERLINE 图层中找到（其余 10 个尚未对照旧版本） |
+| 关联 | `segment_id` 就是 S12 道路中心线的 `ROUTE_ID`。S11 2024-05 的路段全部在 2024-05-28 的 S12 版本里。2025-07 / 2025-08 分别有 9 / 10 个路段不在同月的 S12 版本（2025-07-30、2025-08-29）里，但在更早的版本里：56821、60813、62346、63794、63796、63797、8797 最后出现在 2024-06-05；261807 在 2025-04-28；105473 在 2025-06-26；59042 在 2025-07-30。S11 仍在报告这些路段（62346 和 63797 到 2025-08-06，其余整月）。这是临时读取每个 S12 版本 CENTERLINE 的 `ROUTE_ID` 得到的（S12 尚未解析） |
 | 已检查（2024-05、2025-07、2025-08；2.537 亿行路段读数） | `src.clean.s11_parse`、`src.clean.s11_checks`。去重后 21,619 / 17,415 / 18,674 个文件。3 个文件被截断（两个截在 64 KiB，一个只缺结尾的 `segment_speed_list>`），每个都是同一时间那个完整文件的字节前缀，已跳过。每个文件一个 `date`、`time`、`irn_version`；`irn_version` 全部是 `20221210`；每个 (`date`, `time`) 只在一个完整文件里出现。没有缺失或空值；`segment_id` 全是数字，`speed` 全是小数，`valid` 只有 `Y` / `N`；同一文件里没有重复路段 |
 | 时间 | `time` 都是 HH:MM:00 且分钟为奇数（每 2 分钟一次），只有 2 个文件例外（2025-07-02 02:14、2025-08-01 22:16；下一个文件是 02:15 / 22:17）。每天 720 个奇数分钟时间点中，缺失：2024-05 共 704 个（3.2 %），2025-07 共 4,909 个（22.0 %），2025-08 共 3,651 个（16.4 %）。最长的空档：120 分钟（2025-08-23 19:25 → 21:25）、62 分钟（2025-08-31 01:47 → 02:49）、50 分钟（2024-05-30 19:59 → 20:49）；其余都 ≤ 18 分钟。文件在 `time` 之后 4–12 分钟被抓取（中位数 6） |
 | 路段 | 2024-05-08 17:21 之前每个文件 4,376 个路段，之后 4,388 个（新增 12 个，282434 .. 282486）。2025-07-29 11:11 之前 4,413 个，之后 4,405 个（删除 8 个）。2025-08-06：4,405 → 4,404 → 4,403 → 4,391（分别在 15:55、16:05、16:11 之后删除）。三个月共 4,414 个路段编号 |
@@ -439,6 +454,15 @@ Between 6:45 and 7:45 a.m., lightning was detected over all regions. The rainfal
 `https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv`，
 4,255 行 × 2 列（2023-09）：`irn_id`（路段编号）和 `ucase(route)`（路段所属的**路线编号**；共 174 个，例如路线 `9` 有 423 个路段）。
 没有坐标：几何在 S12。硬盘上有 6 个版本（2021-08 至 2023-09）。
+
+**已检查全部 6 个版本**（`src.clean.versions_parse`、`src.clean.versions_checks`）：
+
+| 检查 | 结果 |
+|-------|--------|
+| 文件 | 不带 BOM 的 UTF-8，逗号分隔；行尾 CRLF（2021-08、2022-03、2022-10）或 LF（2021-11、2022-02、2023-09）。每行 2 个字段；没有空值，没有首尾空格；路段编号全是数字，在每个版本内互不重复 |
+| 表头 | **三种表头**：`Road Name,Segment ID`（2021-08：63 行，全是 `Route 8`）、`route,irn_id`（2021-11 至 2022-10）、`irn_id,ucase(route)`（2023-09；两列对调并改名）。`route`（2021-11 至 2022-10）的值本来就全是大写 |
+| 行 | 63、2,684、3,719、3,831、4,135、4,255 行。每个版本都新增路段（2,621、1,039、112、334、120 个）；只删过 4 个（2022-02）和 30 个（2022-10）；2022-03 → 2022-10 有 277 个路段的 `route` 改了。2021-08 的 63 个路段都在 2021-11 里。2022-10 → 2023-09（表头不同，检查脚本不比较；手工拿 `route` 对 `ucase(route)`）：4,135 个路段全部保留，4,128 个路线不变，7 个改了（例如 163685 `SHENZHEN BAY BRIDGE` → `10`，276283 `UNNAMED ROAD` → `CASTLE PEAK ROAD - CHAU TAU`） |
+| 对照 S11 | 最新版本（2023-09）缺少 S11 2024-05 / 2025-07 / 2025-08 路段中的 136 / 162 / 156 个；其中 135 / 161 / 155 个不在任何版本里（例如 104153、104169、104171）。没有比这三个月更晚的版本，所以这些路段在 S14 里没有路线 |
 
 ### S12. 第二代路网（`RdNet_IRNP.gdb.zip`）
 

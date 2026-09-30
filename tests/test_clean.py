@@ -191,6 +191,28 @@ def test_s7_malformed_files_are_named_and_other_forms_raise():
         malformed(_s7(S7_BODY.replace(b"0.00", b'"0.00"')), "t")
 
 
+def test_versions_parse_reads_by_bom_and_keeps_values_as_written():
+    import codecs
+    from src.clean.versions_parse import decode, parse
+    text = "AID_ID_Number\tRoad_EN\r\nAID20011\tMut Wah Street \r\n"
+    assert decode(codecs.BOM_UTF16_LE + text.encode("utf-16-le")) == (text, "UTF-16 LE BOM")
+    assert decode(codecs.BOM_UTF8 + text.encode()) == (text, "UTF-8 BOM")
+    assert parse(text, "t") == (["AID_ID_Number", "Road_EN"], [["AID20011", "Mut Wah Street "]], "\t")
+    assert parse('route,irn_id\n"9, A",375', "t") == (["route", "irn_id"], [["9, A", "375"]], ",")
+
+
+def test_versions_parse_raises_on_bad_rows_and_bytes():
+    from src.clean.versions_parse import decode, parse
+    with pytest.raises(ValueError, match="data row 1 has 3 fields"):
+        parse("a,b\n1,2,3\n", "t")
+    with pytest.raises(ValueError, match="data row 2 has 0 fields"):
+        parse("a,b\n1,2\n\n", "t")
+    with pytest.raises(ValueError, match="repeated name"):
+        parse("a,a\n1,2\n", "t")
+    with pytest.raises(UnicodeDecodeError):
+        decode(b"Road\ncaf\xe9\n")
+
+
 def test_extract_raises_on_missing_day(tmp_path):
     bundle = _bundle(tmp_path / "b.zip", [("20250805-0007-rawSpeedVol-all.xml", b"a")])
     with pytest.raises(ValueError, match="20250807"):
