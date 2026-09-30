@@ -11,10 +11,13 @@ Output: data/interim/l1/<source>/<bundle YYYYMM>.parquet, one row per <lane>:
     date                           <date> of the file
     period_from, period_to         of the <period>
     detector_id, direction         of the <detector>
+    lane_position                  0, 1, … : the <lane>'s place in its <lanes> (integer)
     lane_id, speed, occupancy, volume, sd, valid   of the <lane> (`sd` is <s.d.>)
 
-Every value is the element's text, unchanged, as a string; an element that is absent is
-null, an empty element is "". Types are checked later, not here.
+Every value except lane_position is the element's text, unchanged, as a string; an element
+that is absent is null, an empty element is "". Types are checked later, not here.
+lane_position keeps the order of the file: TDS90026 writes two lanes as `Middle Lane`
+(docs/cleaning.md D4), and only their order tells them apart.
 
 Which files are read:
 - one file per group of byte-identical files (the manifest keeps every fetch time);
@@ -52,8 +55,9 @@ L1_DIR = INTERIM_DIR / "l1"  # output: L1_DIR / <source>
 LANE_FIELDS = {"lane_id": "lane_id", "speed": "speed", "occupancy": "occupancy",
                "volume": "volume", "s.d.": "sd", "valid": "valid"}
 COLUMNS = ["bundle", "index", "date", "period_from", "period_to", "detector_id", "direction",
-           *LANE_FIELDS.values()]
-SCHEMA = pa.schema([(c, pa.int32() if c == "index" else pa.string()) for c in COLUMNS])
+           "lane_position", *LANE_FIELDS.values()]
+INTEGERS = {"index": pa.int32(), "lane_position": pa.int16()}
+SCHEMA = pa.schema([(c, INTEGERS.get(c, pa.string())) for c in COLUMNS])
 
 _zips: dict[Path, zipfile.ZipFile] = {}
 
@@ -93,12 +97,12 @@ def parse(data: bytes, where: str) -> list[tuple]:
             if det.tag != "detector":
                 raise ValueError(f"{where}: unexpected <{det.tag}> in <detectors>")
             d = _children(det, {"detector_id", "direction", "lanes"}, where)
-            for lane in d["lanes"] if "lanes" in d else []:
+            for position, lane in enumerate(d["lanes"] if "lanes" in d else []):
                 if lane.tag != "lane":
                     raise ValueError(f"{where}: unexpected <{lane.tag}> in <lanes>")
                 ln = _children(lane, set(LANE_FIELDS), where)
                 rows.append((date, _text(p, "period_from"), _text(p, "period_to"),
-                             _text(d, "detector_id"), _text(d, "direction"),
+                             _text(d, "detector_id"), _text(d, "direction"), position,
                              *(_text(ln, t) for t in LANE_FIELDS)))
     return rows
 

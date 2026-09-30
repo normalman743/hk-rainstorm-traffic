@@ -76,8 +76,8 @@ S1_XML = (b'<?xml version="1.0" encoding="utf-8"?><raw_speed_volume_list><date>2
 def test_s1_parse_keeps_text_absent_and_empty():
     from src.clean.s1_parse import parse
     assert parse(S1_XML, "t") == [
-        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", "Fast Lane", "70", "0", "0", "0", "Y"),
-        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", "Slow Lane", "52", "", "2", None, "N"),
+        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", 0, "Fast Lane", "70", "0", "0", "0", "Y"),
+        ("2025-08-05", "08:00:00", "08:00:30", "AID01101", "South East", 1, "Slow Lane", "52", "", "2", None, "N"),
     ]
 
 
