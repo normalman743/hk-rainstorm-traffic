@@ -1,0 +1,688 @@
+{
+ "mixed_model": {
+  "rows": 300000,
+  "fixed_intercept": 0.9646855214081531,
+  "fixed_rain_per_10mm": -0.03398170313631908,
+  "fixed_rain_se": 0.0012992969154251095,
+  "random_sd_intercept": 0.03504717653560301,
+  "random_sd_slope": 0.03476881943318303,
+  "converged": true
+ },
+ "s_warn_on_exposure": {
+  "slope_per_mm": -0.00922850674855501,
+  "intercept": 0.0022854292911500874,
+  "spearman": -0.5123671093134208
+ },
+ "detectors_ranked": {
+  "s_warn": 781,
+  "s_rain": 783,
+  "all_three": 781
+ },
+ "measure_summary": {
+  "s_warn": {
+   "count": 781.0,
+   "mean": -0.08,
+   "std": 0.0452,
+   "min": -0.2141,
+   "25%": -0.1139,
+   "50%": -0.0747,
+   "75%": -0.044,
+   "max": 0.044
+  },
+  "s_rain": {
+   "count": 783.0,
+   "mean": -0.1036,
+   "std": 0.0479,
+   "min": -0.2535,
+   "25%": -0.1377,
+   "50%": -0.0978,
+   "75%": -0.0666,
+   "max": 0.0023
+  },
+  "slope": {
+   "count": 783.0,
+   "mean": -0.034,
+   "std": 0.0333,
+   "min": -0.0928,
+   "25%": -0.0454,
+   "50%": -0.0351,
+   "75%": -0.0245,
+   "max": 0.7285
+  },
+  "s_warn_adj": {
+   "count": 781.0,
+   "mean": -0.08,
+   "std": 0.0399,
+   "min": -0.2158,
+   "25%": -0.1042,
+   "50%": -0.0748,
+   "75%": -0.0523,
+   "max": 0.0447
+  },
+  "flow_warn": {
+   "count": 783.0,
+   "mean": -0.1942,
+   "std": 0.0665,
+   "min": -0.55,
+   "25%": -0.2234,
+   "50%": -0.1859,
+   "75%": -0.1513,
+   "max": 0.1293
+  },
+  "exposure": {
+   "count": 783.0,
+   "mean": 8.9163,
+   "std": 2.3028,
+   "min": 4.5,
+   "25%": 7.0,
+   "50%": 9.0,
+   "75%": 10.0,
+   "max": 19.5
+  }
+ },
+ "spearman_between_measures": {
+  "s_warn~s_rain": 0.9250866852250088,
+  "s_warn~slope": 0.5191117840770231,
+  "s_rain~slope": 0.591471307410935,
+  "s_warn~s_warn_adj": 0.8656500554306829,
+  "s_warn_adj~slope": 0.5559437032834965
+ },
+ "spearman_with_attributes": {
+  "s_warn~base_speed": -0.16089951617490253,
+  "s_warn~base_occupancy": 0.2507155862403986,
+  "s_warn~n_lanes": -0.05663869505633228,
+  "s_warn~flow_warn": 0.10765558739366911,
+  "s_warn~exposure": -0.5123671093134208,
+  "s_rain~base_speed": -0.19276053749835767,
+  "s_rain~base_occupancy": 0.16225216029744746,
+  "s_rain~n_lanes": -0.13630723442905499,
+  "s_rain~flow_warn": 0.04854353338933867,
+  "s_rain~exposure": -0.35256741833532984,
+  "s_warn_adj~base_speed": -0.1839623076394086,
+  "s_warn_adj~base_occupancy": 0.1972057689236507,
+  "s_warn_adj~n_lanes": -0.09074275860130906,
+  "s_warn_adj~flow_warn": 0.019977365488169505,
+  "s_warn_adj~exposure": -0.058355331839487
+ },
+ "split_half": {
+  "s_warn": {
+   "detectors": 775,
+   "spearman": 0.8416347643611932,
+   "top50_overlap": 21
+  },
+  "s_rain": {
+   "detectors": 780,
+   "spearman": 0.9008273290288875,
+   "top50_overlap": 36
+  }
+ },
+ "top20_s_warn": [
+  {
+   "detector_id": "AID07212",
+   "road": "Lung Cheung Road near Lung Cheung Road Park - Eastbound",
+   "district": "Wong Tai Sin",
+   "s_warn": -0.2141,
+   "n_warn": 173.0,
+   "s_rain": -0.2266,
+   "slope": -0.0347,
+   "s_warn_adj": -0.1995,
+   "exposure": 10.5,
+   "base_speed": 61.4555
+  },
+  {
+   "detector_id": "AID07106",
+   "road": "Tseung Kwan O Road near Junk Bay Road Substation - Westbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.2119,
+   "n_warn": 191.0,
+   "s_rain": -0.2535,
+   "slope": -0.0586,
+   "s_warn_adj": -0.2158,
+   "exposure": 8.5,
+   "base_speed": 64.1404
+  },
+  {
+   "detector_id": "AID01222",
+   "road": "Aberdeen Praya Road near Ocean Court - Westbound",
+   "district": "Southern District",
+   "s_warn": -0.2024,
+   "n_warn": 167.0,
+   "s_rain": -0.2084,
+   "slope": -0.0398,
+   "s_warn_adj": -0.174,
+   "exposure": 12.0,
+   "base_speed": 61.8308
+  },
+  {
+   "detector_id": "AID02215",
+   "road": "Kwun Tong Bypass near Sceneway Garden - Eastbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1984,
+   "n_warn": 191.0,
+   "s_rain": -0.2336,
+   "slope": -0.0426,
+   "s_warn_adj": -0.2023,
+   "exposure": 8.5,
+   "base_speed": 83.5986
+  },
+  {
+   "detector_id": "AID07101",
+   "road": "Wan Po Road near Pung Loi Road - Westbound",
+   "district": "Sai Kung",
+   "s_warn": -0.1969,
+   "n_warn": 190.0,
+   "s_rain": -0.1969,
+   "slope": -0.0462,
+   "s_warn_adj": -0.1546,
+   "exposure": 13.5,
+   "base_speed": 56.575
+  },
+  {
+   "detector_id": "AID05121",
+   "road": "West Kowloon Corridor near Lai Chi Kok MTR Station - Northbound",
+   "district": "Sham Shui Po",
+   "s_warn": -0.1954,
+   "n_warn": 191.0,
+   "s_rain": -0.213,
+   "slope": -0.0317,
+   "s_warn_adj": -0.1808,
+   "exposure": 10.5,
+   "base_speed": 68.4747
+  },
+  {
+   "detector_id": "AID04115",
+   "road": "Island Eastern Corridor near Aldrich Garden - Eastbound",
+   "district": "Eastern District",
+   "s_warn": -0.1944,
+   "n_warn": 167.0,
+   "s_rain": -0.2047,
+   "slope": -0.0434,
+   "s_warn_adj": -0.1752,
+   "exposure": 11.0,
+   "base_speed": 70.2931
+  },
+  {
+   "detector_id": "AID05109",
+   "road": "Chatham Road North near MTR Ho Man Tin Station - Westbound",
+   "district": "Kowloon City",
+   "s_warn": -0.1886,
+   "n_warn": 190.0,
+   "s_rain": -0.2184,
+   "slope": -0.0154,
+   "s_warn_adj": -0.1902,
+   "exposure": 8.75,
+   "base_speed": 58.0859
+  },
+  {
+   "detector_id": "AID05102",
+   "road": "Kai Fuk Road near Ngau Tau Kok Jockey Club Clinic - Northbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1879,
+   "n_warn": 191.0,
+   "s_rain": -0.1795,
+   "slope": -0.0324,
+   "s_warn_adj": -0.1918,
+   "exposure": 8.5,
+   "base_speed": 58.8444
+  },
+  {
+   "detector_id": "AID01223",
+   "road": "Aberdeen Praya Road near Aberdeen Bus Terminus - Westbound",
+   "district": "Southern District",
+   "s_warn": -0.1863,
+   "n_warn": 190.0,
+   "s_rain": -0.1921,
+   "slope": -0.041,
+   "s_warn_adj": -0.1764,
+   "exposure": 10.0,
+   "base_speed": 66.689
+  },
+  {
+   "detector_id": "AID09101",
+   "road": "Tuen Mun Road near Tsuen Wan Road - Eastbound",
+   "district": "Tsuen Wan",
+   "s_warn": -0.1847,
+   "n_warn": 172.0,
+   "s_rain": -0.2072,
+   "slope": -0.0795,
+   "s_warn_adj": -0.1793,
+   "exposure": 9.5,
+   "base_speed": 75.9771
+  },
+  {
+   "detector_id": "AID01124",
+   "road": "Lion Rock Tunnel Road near Toll Plaza - Northbound",
+   "district": "Sha Tin",
+   "s_warn": -0.179,
+   "n_warn": 190.0,
+   "s_rain": -0.1925,
+   "slope": -0.0539,
+   "s_warn_adj": -0.1783,
+   "exposure": 9.0,
+   "base_speed": 75.0798
+  },
+  {
+   "detector_id": "AID05214",
+   "road": "Kwai Chung Road near Lai Chi Kok Fire Station - Southbound",
+   "district": "Sham Shui Po",
+   "s_warn": -0.1786,
+   "n_warn": 22.0,
+   "s_rain": -0.1604,
+   "slope": -0.0583,
+   "s_warn_adj": -0.081,
+   "exposure": 19.5,
+   "base_speed": 74.037
+  },
+  {
+   "detector_id": "AID04214",
+   "road": "Island Eastern Corridor near Quarry Bay Park Phase 2 - Westbound",
+   "district": "Eastern District",
+   "s_warn": -0.1759,
+   "n_warn": 167.0,
+   "s_rain": -0.1992,
+   "slope": -0.0526,
+   "s_warn_adj": -0.1567,
+   "exposure": 11.0,
+   "base_speed": 77.9867
+  },
+  {
+   "detector_id": "AID08217",
+   "road": "North Lantau Highway near Refuse Transfer Station - Eastbound",
+   "district": "Tsuen Wan",
+   "s_warn": -0.1749,
+   "n_warn": 167.0,
+   "s_rain": -0.1743,
+   "slope": -0.0573,
+   "s_warn_adj": -0.1649,
+   "exposure": 10.0,
+   "base_speed": 102.1024
+  },
+  {
+   "detector_id": "AID05219",
+   "road": "West Kowloon Corridor near Sycamore Playground -Southbound",
+   "district": "Yau Tsim Mong",
+   "s_warn": -0.1743,
+   "n_warn": 189.0,
+   "s_rain": -0.24,
+   "slope": -0.0581,
+   "s_warn_adj": -0.192,
+   "exposure": 7.0,
+   "base_speed": 71.9408
+  },
+  {
+   "detector_id": "AID08221",
+   "road": "North Lantau Highway near Ta Pang Po - Eastbound",
+   "district": "Tsuen Wan",
+   "s_warn": -0.1738,
+   "n_warn": 172.0,
+   "s_rain": -0.1926,
+   "slope": -0.0611,
+   "s_warn_adj": -0.1685,
+   "exposure": 9.5,
+   "base_speed": 108.9189
+  },
+  {
+   "detector_id": "AID05209",
+   "road": "Kwai Chung Road near Lai King MTR Station - Southbound (1)",
+   "district": "Kwai Tsing",
+   "s_warn": -0.1727,
+   "n_warn": 191.0,
+   "s_rain": -0.2123,
+   "slope": -0.0543,
+   "s_warn_adj": -0.1351,
+   "exposure": 13.0,
+   "base_speed": 79.9584
+  },
+  {
+   "detector_id": "AID01215",
+   "road": "Canal Road Flyover near Wing Tak Building - Southbound",
+   "district": "Wan Chai",
+   "s_warn": -0.1724,
+   "n_warn": 190.0,
+   "s_rain": -0.2036,
+   "slope": -0.0363,
+   "s_warn_adj": -0.1624,
+   "exposure": 10.0,
+   "base_speed": 69.8325
+  },
+  {
+   "detector_id": "AID07128",
+   "road": "Lung Cheung Road near Ching Cheung Road - Westbound",
+   "district": "Sham Shui Po",
+   "s_warn": -0.1706,
+   "n_warn": 172.0,
+   "s_rain": -0.1869,
+   "slope": -0.0426,
+   "s_warn_adj": -0.1561,
+   "exposure": 10.5,
+   "base_speed": 49.5427
+  }
+ ],
+ "top20_s_warn_adj": [
+  {
+   "detector_id": "AID07106",
+   "road": "Tseung Kwan O Road near Junk Bay Road Substation - Westbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.2119,
+   "s_warn_adj": -0.2158,
+   "exposure": 8.5
+  },
+  {
+   "detector_id": "AID02215",
+   "road": "Kwun Tong Bypass near Sceneway Garden - Eastbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1984,
+   "s_warn_adj": -0.2023,
+   "exposure": 8.5
+  },
+  {
+   "detector_id": "AID07212",
+   "road": "Lung Cheung Road near Lung Cheung Road Park - Eastbound",
+   "district": "Wong Tai Sin",
+   "s_warn": -0.2141,
+   "s_warn_adj": -0.1995,
+   "exposure": 10.5
+  },
+  {
+   "detector_id": "AID05219",
+   "road": "West Kowloon Corridor near Sycamore Playground -Southbound",
+   "district": "Yau Tsim Mong",
+   "s_warn": -0.1743,
+   "s_warn_adj": -0.192,
+   "exposure": 7.0
+  },
+  {
+   "detector_id": "AID05102",
+   "road": "Kai Fuk Road near Ngau Tau Kok Jockey Club Clinic - Northbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1879,
+   "s_warn_adj": -0.1918,
+   "exposure": 8.5
+  },
+  {
+   "detector_id": "AID05109",
+   "road": "Chatham Road North near MTR Ho Man Tin Station - Westbound",
+   "district": "Kowloon City",
+   "s_warn": -0.1886,
+   "s_warn_adj": -0.1902,
+   "exposure": 8.75
+  },
+  {
+   "detector_id": "AID05121",
+   "road": "West Kowloon Corridor near Lai Chi Kok MTR Station - Northbound",
+   "district": "Sham Shui Po",
+   "s_warn": -0.1954,
+   "s_warn_adj": -0.1808,
+   "exposure": 10.5
+  },
+  {
+   "detector_id": "AID09101",
+   "road": "Tuen Mun Road near Tsuen Wan Road - Eastbound",
+   "district": "Tsuen Wan",
+   "s_warn": -0.1847,
+   "s_warn_adj": -0.1793,
+   "exposure": 9.5
+  },
+  {
+   "detector_id": "AID01124",
+   "road": "Lion Rock Tunnel Road near Toll Plaza - Northbound",
+   "district": "Sha Tin",
+   "s_warn": -0.179,
+   "s_warn_adj": -0.1783,
+   "exposure": 9.0
+  },
+  {
+   "detector_id": "AID01223",
+   "road": "Aberdeen Praya Road near Aberdeen Bus Terminus - Westbound",
+   "district": "Southern District",
+   "s_warn": -0.1863,
+   "s_warn_adj": -0.1764,
+   "exposure": 10.0
+  },
+  {
+   "detector_id": "AID04115",
+   "road": "Island Eastern Corridor near Aldrich Garden - Eastbound",
+   "district": "Eastern District",
+   "s_warn": -0.1944,
+   "s_warn_adj": -0.1752,
+   "exposure": 11.0
+  },
+  {
+   "detector_id": "AID01222",
+   "road": "Aberdeen Praya Road near Ocean Court - Westbound",
+   "district": "Southern District",
+   "s_warn": -0.2024,
+   "s_warn_adj": -0.174,
+   "exposure": 12.0
+  },
+  {
+   "detector_id": "AID09153",
+   "road": "Fanling Highway near Choi Yuen Estate Choi Lai House - Eastbound",
+   "district": "North District",
+   "s_warn": -0.1371,
+   "s_warn_adj": -0.1733,
+   "exposure": 5.0
+  },
+  {
+   "detector_id": "AID07112",
+   "road": "Kwun Tong Road near Fuk To Street - Westbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.158,
+   "s_warn_adj": -0.1711,
+   "exposure": 7.5
+  },
+  {
+   "detector_id": "AID01123",
+   "road": "Lion Rock Tunnel Road near Entrance from Kowloon - Northbound",
+   "district": "Kowloon City",
+   "s_warn": -0.1669,
+   "s_warn_adj": -0.1708,
+   "exposure": 8.5
+  },
+  {
+   "detector_id": "AID05224",
+   "road": "Gascoigne Road near Methodist College - Eastbound",
+   "district": "Yau Tsim Mong",
+   "s_warn": -0.151,
+   "s_warn_adj": -0.1687,
+   "exposure": 7.0
+  },
+  {
+   "detector_id": "AID08221",
+   "road": "North Lantau Highway near Ta Pang Po - Eastbound",
+   "district": "Tsuen Wan",
+   "s_warn": -0.1738,
+   "s_warn_adj": -0.1685,
+   "exposure": 9.5
+  },
+  {
+   "detector_id": "AID01212",
+   "road": "Princess Margaret Road near King's Park -Southbound",
+   "district": "Kowloon City",
+   "s_warn": -0.1688,
+   "s_warn_adj": -0.168,
+   "exposure": 9.0
+  },
+  {
+   "detector_id": "AID07111",
+   "road": "Kwun Tong Road near Yan Wing Mansion - Westbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1638,
+   "s_warn_adj": -0.1677,
+   "exposure": 8.5
+  },
+  {
+   "detector_id": "AID02208",
+   "road": "Kwun Tong Bypass near Kowloon Godown - Southbound",
+   "district": "Kwun Tong",
+   "s_warn": -0.1612,
+   "s_warn_adj": -0.165,
+   "exposure": 8.5
+  }
+ ],
+ "top20_overlap_raw_vs_adj": 13,
+ "districts": [
+  {
+   "district": "Sai Kung",
+   "detectors": 9,
+   "s_warn": -0.1372,
+   "s_rain": -0.1479,
+   "slope": -0.0405,
+   "s_warn_adj": -0.095,
+   "exposure": 13.5
+  },
+  {
+   "district": "Yau Tsim Mong",
+   "detectors": 24,
+   "s_warn": -0.1285,
+   "s_rain": -0.1571,
+   "slope": -0.0403,
+   "s_warn_adj": -0.129,
+   "exposure": 8.75
+  },
+  {
+   "district": "Kwai Tsing",
+   "detectors": 17,
+   "s_warn": -0.1272,
+   "s_rain": -0.1645,
+   "slope": -0.0454,
+   "s_warn_adj": -0.0895,
+   "exposure": 13.0
+  },
+  {
+   "district": "Sham Shui Po",
+   "detectors": 43,
+   "s_warn": -0.1213,
+   "s_rain": -0.1394,
+   "slope": -0.0399,
+   "s_warn_adj": -0.1062,
+   "exposure": 10.5
+  },
+  {
+   "district": "Central & Western District",
+   "detectors": 14,
+   "s_warn": -0.1197,
+   "s_rain": -0.1348,
+   "slope": -0.039,
+   "s_warn_adj": -0.0921,
+   "exposure": 11.75
+  },
+  {
+   "district": "Kwun Tong",
+   "detectors": 62,
+   "s_warn": -0.1159,
+   "s_rain": -0.1399,
+   "slope": -0.0351,
+   "s_warn_adj": -0.1005,
+   "exposure": 8.5
+  },
+  {
+   "district": "Eastern District",
+   "detectors": 35,
+   "s_warn": -0.1158,
+   "s_rain": -0.1391,
+   "slope": -0.0363,
+   "s_warn_adj": -0.0966,
+   "exposure": 11.0
+  },
+  {
+   "district": "Kowloon City",
+   "detectors": 35,
+   "s_warn": -0.1113,
+   "s_rain": -0.1356,
+   "slope": -0.0316,
+   "s_warn_adj": -0.1152,
+   "exposure": 8.5
+  },
+  {
+   "district": "Wong Tai Sin",
+   "detectors": 16,
+   "s_warn": -0.1077,
+   "s_rain": -0.139,
+   "slope": -0.0351,
+   "s_warn_adj": -0.0993,
+   "exposure": 8.0
+  },
+  {
+   "district": "Wan Chai",
+   "detectors": 11,
+   "s_warn": -0.0959,
+   "s_rain": -0.1267,
+   "slope": -0.0191,
+   "s_warn_adj": -0.0813,
+   "exposure": 10.0
+  },
+  {
+   "district": "Southern District",
+   "detectors": 22,
+   "s_warn": -0.0936,
+   "s_rain": -0.121,
+   "slope": -0.0296,
+   "s_warn_adj": -0.0837,
+   "exposure": 10.0
+  },
+  {
+   "district": "Islands District",
+   "detectors": 30,
+   "s_warn": -0.0936,
+   "s_rain": -0.0885,
+   "slope": -0.0418,
+   "s_warn_adj": -0.0421,
+   "exposure": 14.5
+  },
+  {
+   "district": "Tsuen Wan",
+   "detectors": 89,
+   "s_warn": -0.0751,
+   "s_rain": -0.0975,
+   "slope": -0.0389,
+   "s_warn_adj": -0.0689,
+   "exposure": 9.625
+  },
+  {
+   "district": "Sha Tin",
+   "detectors": 103,
+   "s_warn": -0.0622,
+   "s_rain": -0.082,
+   "slope": -0.0357,
+   "s_warn_adj": -0.0658,
+   "exposure": 9.0
+  },
+  {
+   "district": "North District",
+   "detectors": 27,
+   "s_warn": -0.0574,
+   "s_rain": -0.0944,
+   "slope": -0.0511,
+   "s_warn_adj": -0.0935,
+   "exposure": 5.0
+  },
+  {
+   "district": "Tuen Mun",
+   "detectors": 70,
+   "s_warn": -0.046,
+   "s_rain": -0.0743,
+   "slope": -0.023,
+   "s_warn_adj": -0.0637,
+   "exposure": 7.0
+  },
+  {
+   "district": "Yuen Long",
+   "detectors": 128,
+   "s_warn": -0.0441,
+   "s_rain": -0.073,
+   "slope": -0.0377,
+   "s_warn_adj": -0.0699,
+   "exposure": 6.0
+  },
+  {
+   "district": "Tai Po",
+   "detectors": 46,
+   "s_warn": -0.035,
+   "s_rain": -0.0378,
+   "slope": -0.0171,
+   "s_warn_adj": -0.0353,
+   "exposure": 9.0
+  }
+ ]
+}
