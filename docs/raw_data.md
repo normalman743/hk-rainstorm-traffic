@@ -400,6 +400,8 @@ Downloaded for 2024–2025 (see [Inventory](#inventory-on-disk-2026-09-29)); not
 | Live URL | `https://resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol_SLP-all.xml` |
 | Format | **Same as S1**: same root element and same schema (`SpeedVolOcc-BR.xsd`), same fields and codes (data dictionary 20231228) |
 | Observed | 28,465 snapshots in 2025-08 (up to 948 a day), 0.34 GB uncompressed per month; 17 detectors reporting (`AID20011` .. `AID20060`, in 57 sampled snapshots), of the 20 listed in S10 |
+| Checked (2024-05, 2025-07, 2025-08; 5.5 M readings) | Same file pattern as S1: identical copies (142 / 2,260 / 2,028 extra), two periods per file, each period in one distinct file, 26.9 / 46.3 / 40.8 % of periods missing (longest gap 42, 15, 9 min). No truncated file. Detectors: 20, 18, 17 (all in S10); each keeps one direction; lanes `Fast`, `Middle`, `Slow Lane`. Nothing absent or empty, every value well-formed. `valid = N`: 9,162 / 84 / 36 readings |
+| Same lane twice | In 49 files a detector lists a lane twice, usually next to each other (622 keys: 568 in 2024-05, 26 in one 2025-07 file, 28 in one 2025-08 file). 615 keys have identical readings; 7 differ (AID20031 2024-05-02 07:34:00, AID20022 05-16 08:02:00 and 05-17 17:55:30, AID20054 05-20 17:22:00) |
 
 ### S10. Smart-lamppost detector locations (`traffic_speed_volume_occ_info-slp.csv`)
 

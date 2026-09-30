@@ -1,27 +1,30 @@
 """Row-level checks on S1 L1: repeated keys (same or different values), nulls / empty strings, values that are not numbers.
 
-    python -m src.clean.s1_rows
+    python -m src.clean.s1_rows [--source s1]
 
-Reads data/interim/l1/s1/*.parquet (python -m src.clean.s1_parse). Changes nothing.
+`--source s9`: the smart-lamppost readings, same format (see src.clean.s1_periods).
+Reads data/interim/l1/<source>/*.parquet (python -m src.clean.s1_parse). Changes nothing.
 Key of a reading: (date, period_from, detector_id, lane_id), as written in the file.
 TODO: repeated keys with a null key column are not counted or listed (the join does not
 match nulls); the null counts of the key columns show whether this matters.
 
 Output, in data/interim/checks/:
-- s1_rows_summary.csv   one row per month and check
-- s1_rows_repeated.csv  every row whose key occurs more than once (with its bundle:index)
-- s1_rows_bad_values.csv  every non-null value of speed / occupancy / volume / sd that is not a
+- <source>_rows_summary.csv   one row per month and check
+- <source>_rows_repeated.csv  every row whose key occurs more than once (with its bundle:index)
+- <source>_rows_bad_values.csv  every non-null value of speed / occupancy / volume / sd that is not a
                         number, of date that is not YYYY-MM-DD, or of period_from / period_to
                         that is not HH:MM:SS
 """
 
 from __future__ import annotations
 
+import argparse
+
 import duckdb
 from tqdm import tqdm
 
-from src.clean.s1_parse import OUT_DIR as L1_DIR
-from src.clean.s1_periods import OUT_DIR as CHECKS_DIR
+from src.clean.s1_parse import L1_DIR
+from src.clean.s1_periods import OUT_DIR as CHECKS_DIR, SOURCES
 
 COLUMNS = ["date", "period_from", "period_to", "detector_id", "direction",
            "lane_id", "speed", "occupancy", "volume", "sd", "valid"]
@@ -41,12 +44,12 @@ FORMATS = {
 }
 
 
-def main() -> None:
+def check(source: str) -> None:
     con = duckdb.connect()
-    con.execute(f"SET temp_directory = '{L1_DIR.parent / 'duckdb_tmp'}'")
+    con.execute(f"SET temp_directory = '{L1_DIR / 'duckdb_tmp'}'")
     con.execute(f"SET memory_limit = '{MEMORY_LIMIT}'")
     con.execute(f"""CREATE VIEW l1 AS SELECT *, substr(bundle, 1, 6) AS month
-                    FROM read_parquet('{L1_DIR}/*.parquet')""")
+                    FROM read_parquet('{L1_DIR / source}/*.parquet')""")
     summary = []
 
     # rows and repeated keys: first find the keys (count only), then compare their rows
@@ -73,7 +76,7 @@ def main() -> None:
         summary += [(month, "keys with >1 row", n_keys), (month, "  ... all rows equal", n_same),
                     (month, "  ... rows differ", n_diff)]
     con.execute(f"""COPY (SELECT * EXCLUDE (month) FROM repeated ORDER BY {KEY}, bundle, index)
-                    TO '{CHECKS_DIR}/s1_rows_repeated.csv' (HEADER)""")
+                    TO '{CHECKS_DIR}/{source}_rows_repeated.csv' (HEADER)""")
 
     # nulls (element absent) and empty strings (element empty)
     for c in COLUMNS:
@@ -92,18 +95,25 @@ def main() -> None:
             "SELECT month, col, count(*) FROM bad GROUP BY ALL ORDER BY ALL").fetchall():
         summary.append((month, f"{col}: not well-formed", n))
     con.execute(f"""COPY (SELECT * EXCLUDE (month) FROM bad ORDER BY col, {KEY})
-                    TO '{CHECKS_DIR}/s1_rows_bad_values.csv' (HEADER)""")
+                    TO '{CHECKS_DIR}/{source}_rows_bad_values.csv' (HEADER)""")
 
-    with (CHECKS_DIR / "s1_rows_summary.csv").open("w") as f:
+    with (CHECKS_DIR / f"{source}_rows_summary.csv").open("w") as f:
         f.write("month,check,n\n")
         f.writelines(f"{m},{c.strip()},{n}\n" for m, c, n in summary)
-    print(f"written to {CHECKS_DIR}: s1_rows_summary.csv, s1_rows_repeated.csv, s1_rows_bad_values.csv\n")
+    print(f"written to {CHECKS_DIR}: {source}_rows_summary.csv, {source}_rows_repeated.csv, "
+          f"{source}_rows_bad_values.csv\n")
     months = sorted({m for m, _, _ in summary})
     checks = list(dict.fromkeys(c for _, c, _ in summary))
     table = {(m, c): n for m, c, n in summary}
     print(f"{'check':28}" + "".join(f"{m:>14}" for m in months))
     for c in checks:
         print(f"{c:28}" + "".join(f"{table.get((m, c), 0):>14,}" for m in months))
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--source", choices=list(SOURCES), default="s1")
+    check(p.parse_args().source)
 
 
 if __name__ == "__main__":

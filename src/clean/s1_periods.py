@@ -1,17 +1,20 @@
 """Which 30-second periods do the S1 files hold? Missing periods and periods found in several files.
 
-    python -m src.clean.s1_periods [--workers 8]
+    python -m src.clean.s1_periods [--source s1] [--workers 8]
 
-Needs data/interim/manifest/rawSpeedVol-all.xml.csv (python -m src.clean.manifest ...).
+`--source s9` does the same for the smart-lamppost readings, which have the S1 format
+(same XSD, SpeedVolOcc-BR.xsd). Below, <source> is s1 or s9 and <resource> its file name.
+
+Needs data/interim/manifest/<resource>.csv (python -m src.clean.manifest ...).
 One file per group of identical files is read (the others have the same bytes). Nothing is
 changed or corrected: dates and times are taken as written in the file, so the 00:00 period
 stays under the previous day's <date> (see docs/raw_data.md, S1 quirks).
 
 Output, in data/interim/checks/:
-- s1_files.csv: one row per distinct file: bundle, index, member, fetch_time, n_copies,
+- <source>_files.csv: one row per distinct file: bundle, index, member, fetch_time, n_copies,
   n_date (number of <date> elements), date, periods (period_from values, ";"-joined),
   period_to (";"-joined), complete (ends with </raw_speed_volume_list>).
-- s1_days.csv: one row per <date> in the files: n_files, n_periods (distinct period_from),
+- <source>_days.csv: one row per <date> in the files: n_files, n_periods (distinct period_from),
   missing (of 2,880), longest_gap_min (longest run of missing periods, in minutes),
   periods_in_several_files (period_from values that occur in more than one distinct file).
 """
@@ -32,7 +35,9 @@ from tqdm import tqdm
 from src.clean.manifest import OUT_DIR as MANIFEST_DIR
 from src.config import INTERIM_DIR, RAW_DIR
 
-BUNDLES = RAW_DIR / "resource.data.one.gov.hk/td/traffic-detectors/rawSpeedVol-all.xml/bundle"
+# sources in the S1 format: name -> resource file name
+SOURCES = {"s1": "rawSpeedVol-all.xml", "s9": "rawSpeedVol_SLP-all.xml"}
+TD_DIR = RAW_DIR / "resource.data.one.gov.hk/td/traffic-detectors"
 OUT_DIR = INTERIM_DIR / "checks"
 END = b"</raw_speed_volume_list>"
 PERIODS_PER_DAY = 2880
@@ -55,19 +60,23 @@ def _read(bundle: Path, indexes: list[int]) -> list[tuple[int, list[bytes], list
     return out
 
 
+def bundles(source: str) -> Path:
+    return TD_DIR / SOURCES[source] / "bundle"
+
+
 def _seconds(hms: str) -> int:
     h, m, s = hms.split(":")
     return int(h) * 3600 + int(m) * 60 + int(s)
 
 
-def build(workers: int) -> None:
-    with (MANIFEST_DIR / "rawSpeedVol-all.xml.csv").open() as f:
+def build(source: str, workers: int) -> None:
+    with (MANIFEST_DIR / f"{SOURCES[source]}.csv").open() as f:
         rows = [r for r in csv.DictReader(f) if r["group"] == f"{r['bundle']}:{r['index']}"]
 
     tasks: list[tuple[Path, list[int]]] = []
     for bundle in sorted({r["bundle"] for r in rows}):
         ix = [int(r["index"]) for r in rows if r["bundle"] == bundle]
-        tasks += [(BUNDLES / bundle, ix[s:s + 300]) for s in range(0, len(ix), 300)]
+        tasks += [(bundles(source) / bundle, ix[s:s + 300]) for s in range(0, len(ix), 300)]
     by_key = {(r["bundle"], int(r["index"])): r for r in rows}
     total = sum(int(r["size"]) for r in rows)
 
@@ -76,7 +85,7 @@ def build(workers: int) -> None:
     odd: dict[str, int] = defaultdict(int)  # counts of files that are incomplete or not 1 <date>
     with ProcessPoolExecutor(max_workers=workers) as pool, \
             tqdm(total=total, unit="B", unit_scale=True, desc="reading") as bar, \
-            (OUT_DIR / "s1_files.csv").open("w", newline="") as f:
+            (OUT_DIR / f"{source}_files.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["bundle", "index", "member", "fetch_time", "n_copies",
                     "n_date", "date", "periods", "period_to", "complete"])
@@ -110,11 +119,11 @@ def build(workers: int) -> None:
         several = sum(1 for n in days[date]["periods"].values() if n > 1)
         day_rows.append([date, days[date]["files"], len(present), PERIODS_PER_DAY - len(present),
                          longest / 2, several])
-    with (OUT_DIR / "s1_days.csv").open("w", newline="") as f:
+    with (OUT_DIR / f"{source}_days.csv").open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["date", "n_files", "n_periods", "missing", "longest_gap_min", "periods_in_several_files"])
         w.writerows(day_rows)
-    print(f"written to {OUT_DIR}: s1_files.csv, s1_days.csv")
+    print(f"written to {OUT_DIR}: {source}_files.csv, {source}_days.csv")
 
     print("files that are incomplete / not one <date> / not two periods:", dict(odd) or "none")
     print(f"{'month':8} {'days':>4} {'files':>7} {'missing %':>9} {'min/day':>8} {'max/day':>8} "
@@ -129,8 +138,10 @@ def build(workers: int) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--source", choices=list(SOURCES), default="s1")
     p.add_argument("--workers", type=int, default=cpu_count())
-    build(p.parse_args().workers)
+    a = p.parse_args()
+    build(a.source, a.workers)
 
 
 if __name__ == "__main__":

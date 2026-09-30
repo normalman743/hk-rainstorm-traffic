@@ -1,11 +1,12 @@
 """S1 L1: every lane reading of the distinct S1 files, as written, one Parquet file per bundle.
 
-    python -m src.clean.s1_parse [--workers 8]
+    python -m src.clean.s1_parse [--source s1] [--workers 8]
 
-Needs data/interim/manifest/rawSpeedVol-all.xml.csv and data/interim/checks/s1_files.csv
-(python -m src.clean.manifest ..., python -m src.clean.s1_periods).
+`--source s9`: the smart-lamppost readings, same format (see src.clean.s1_periods).
+Needs data/interim/manifest/<resource>.csv and data/interim/checks/<source>_files.csv
+(python -m src.clean.manifest ..., python -m src.clean.s1_periods --source <source>).
 
-Output: data/interim/l1/s1/<bundle YYYYMM>.parquet, one row per <lane>:
+Output: data/interim/l1/<source>/<bundle YYYYMM>.parquet, one row per <lane>:
     bundle, index                  the zip member the row comes from (see the manifest)
     date                           <date> of the file
     period_from, period_to         of the <period>
@@ -17,9 +18,9 @@ null, an empty element is "". Types are checked later, not here.
 
 Which files are read:
 - one file per group of byte-identical files (the manifest keeps every fetch time);
-- members that are not `*-rawSpeedVol-all.xml` (the bundle's data-dictionary.pdf pointer)
+- members that are not `*-<resource>` (the bundle's data-dictionary.pdf pointer)
   are skipped and listed;
-- truncated files (complete = False in s1_files.csv) are skipped only if every period they
+- truncated files (complete = False in <source>_files.csv) are skipped only if every period they
   hold is also in a complete file; otherwise this raises.
 
 Any element not in the structure below, or a child that occurs twice, raises:
@@ -43,11 +44,10 @@ from lxml import etree
 from tqdm import tqdm
 
 from src.clean.manifest import OUT_DIR as MANIFEST_DIR
-from src.clean.s1_periods import BUNDLES, OUT_DIR as CHECKS_DIR
+from src.clean.s1_periods import OUT_DIR as CHECKS_DIR, SOURCES, bundles
 from src.config import INTERIM_DIR
 
-RESOURCE = "rawSpeedVol-all.xml"
-OUT_DIR = INTERIM_DIR / "l1" / "s1"
+L1_DIR = INTERIM_DIR / "l1"  # output: L1_DIR / <source>
 
 LANE_FIELDS = {"lane_id": "lane_id", "speed": "speed", "occupancy": "occupancy",
                "volume": "volume", "s.d.": "sd", "valid": "valid"}
@@ -121,11 +121,12 @@ def _parse_chunk(bundle: Path, indexes: list[int]) -> tuple[pa.Table, int]:
     return pa.table({c: cols[c] for c in COLUMNS}, schema=SCHEMA), nbytes
 
 
-def _select() -> tuple[dict[str, list[dict]], list[str]]:
+def _select(source: str) -> tuple[dict[str, list[dict]], list[str]]:
     """Members to parse per bundle, and a list of what is skipped and why."""
-    with (MANIFEST_DIR / f"{RESOURCE}.csv").open() as f:
+    resource = SOURCES[source]
+    with (MANIFEST_DIR / f"{resource}.csv").open() as f:
         firsts = [r for r in csv.DictReader(f) if r["group"] == f"{r['bundle']}:{r['index']}"]
-    with (CHECKS_DIR / "s1_files.csv").open() as f:
+    with (CHECKS_DIR / f"{source}_files.csv").open() as f:
         checks = {(r["bundle"], r["index"]): r for r in csv.DictReader(f)}
 
     complete_periods = set()
@@ -135,8 +136,8 @@ def _select() -> tuple[dict[str, list[dict]], list[str]]:
 
     todo, skipped = defaultdict(list), []
     for r in firsts:
-        if not r["member"].endswith(f"-{RESOURCE}"):
-            skipped.append(f"{r['bundle']}:{r['index']} {r['member']}: not {RESOURCE}")
+        if not r["member"].endswith(f"-{resource}"):
+            skipped.append(f"{r['bundle']}:{r['index']} {r['member']}: not {resource}")
             continue
         c = checks[(r["bundle"], r["index"])]
         if c["complete"] != "True":
@@ -151,21 +152,22 @@ def _select() -> tuple[dict[str, list[dict]], list[str]]:
     return todo, skipped
 
 
-def build(workers: int) -> None:
-    todo, skipped = _select()
+def build(source: str, workers: int) -> None:
+    todo, skipped = _select(source)
     for s in skipped:
         print("skipped", s)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir = L1_DIR / source
+    out_dir.mkdir(parents=True, exist_ok=True)
     total = sum(int(r["size"]) for rs in todo.values() for r in rs)
     with ProcessPoolExecutor(max_workers=workers) as pool, \
             tqdm(total=total, unit="B", unit_scale=True, desc="parsing") as bar:
         for bundle in sorted(todo):
             ix = [int(r["index"]) for r in todo[bundle]]
-            out = OUT_DIR / f"{bundle[:6]}.parquet"
+            out = out_dir / f"{bundle[:6]}.parquet"
             tmp = out.with_suffix(".parquet.part")
             n_rows = 0
             with pq.ParquetWriter(tmp, SCHEMA, compression="zstd") as w:
-                futures = [pool.submit(_parse_chunk, BUNDLES / bundle, ix[s:s + 50])
+                futures = [pool.submit(_parse_chunk, bundles(source) / bundle, ix[s:s + 50])
                            for s in range(0, len(ix), 50)]
                 for fut in as_completed(futures):
                     table, nbytes = fut.result()
@@ -178,8 +180,10 @@ def build(workers: int) -> None:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--source", choices=list(SOURCES), default="s1")
     p.add_argument("--workers", type=int, default=cpu_count())
-    build(p.parse_args().workers)
+    a = p.parse_args()
+    build(a.source, a.workers)
 
 
 if __name__ == "__main__":
