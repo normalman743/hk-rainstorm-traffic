@@ -24,29 +24,500 @@ A Preprocessing and Integration Study of Detector, Rainfall and Warning Data}
 \maketitle
 
 \begin{abstract}
-%ABSTRACT%
+We join 332.9 million 30-second lane readings from about 790 Hong Kong road detectors with
+hourly district rainfall and rainstorm warning signals over three wet-season months (May 2024,
+July and August 2025, including all four 2025 Black Rainstorm episodes), through a three-layer
+pipeline whose every cleaning rule is recorded with evidence and counts. Speed falls steadily
+with the rain in the detector's district (about 3.4\,\% per 10\,mm/h), while the warning level
+mainly changes demand: under Black, flow is 62\,\% of normal whatever the local rain and speed
+is higher than under Red. A per-detector sensitivity ranking is stable across storms
+(split-half Spearman 0.84) but partly reflects how much rain each district received; after
+adjusting, Kowloon urban corridors are the most sensitive. Holding out whole storms, LightGBM
+reduces the error of a time-only baseline on wet slots by 28\,\%, almost all of it from rain
+features. An ablation of eleven preprocessing steps shows that the lane-to-detector speed
+aggregation, the time slot and the rain assignment change the answers, a robust outlier rule
+removes real congestion, and the validity flag, stuck sensors and gap filling hardly matter.
 \end{abstract}
 
 \section{Introduction}
-%INTRO%
+Heavy rain is a recurring disruption in Hong Kong. The Observatory's Black Rainstorm
+warning itself warns that persistent heavy rain ``will cause serious road flooding and traffic
+congestion'', and 2025 was the first year under the current system with four Black Rainstorm
+episodes~\cite{arxiv2025black}. That rain slows traffic is well established; what a traffic
+manager or a commuter needs is \emph{where} the effect is largest and whether it can be
+anticipated. Both questions require joining data that were never designed to be joined:
+30-second lane readings from about 790 road detectors, an hourly rainfall \emph{range} per
+district published as a weather bulletin, and warning signals issued for the whole territory.
+
+This project treats that join, and the cleaning around it, as the object of study. We
+(i) build a reproducible three-layer pipeline (raw as written, cleaned per source, analysis
+table) over three wet-season months (May 2024, July and August 2025; 332.9 million lane
+readings), recording every cleaning rule with its evidence and counts;
+(ii) rank detectors by rainstorm sensitivity (RQ1); (iii) predict the 15-minute speed ratio
+during rain events against a time-only baseline, holding out whole storms (RQ2); and
+(iv) measure how much each preprocessing choice changes the RQ1 ranking and the RQ2 accuracy
+(RQ3).
+
+The main findings are: speed falls steadily with the rain \emph{at the detector} (about
+3.4\,\% per 10\,mm/h), while the territory-wide warning level mostly changes \emph{demand}:
+under Black the median flow is 62\,\% of normal whatever the local rain, and speed is higher
+than under Red at equal rain (a ``Black paradox''). A warning-based sensitivity ranking is
+stable across storms (split-half Spearman 0.84) but half of its district pattern is
+\emph{exposure} (how much rain fell there); after adjusting, the Kowloon urban corridors
+remain the most sensitive roads. Rain features cut the prediction error on wet slots by
+28\,\% relative to the time-only baseline, while the warning level adds little. Of eleven
+preprocessing steps, the ones that change the answers are how lane readings become a detector
+speed (the ranking keeps only 11 of its top 20), the time slot (prediction skill 0.22 to 0.38)
+and how rain is assigned to a road; a robust outlier rule quietly removes a quarter of the
+rain congestion, and the validity flag, stuck sensors and gap filling hardly matter.
+
 
 \section{Related Work}
-%RELATED%
+\emph{Rain and speed on a single road.} A study of one Hong Kong urban
+road~\cite{ijgi2021rain} reports speed reductions of about 4.2\,\%, 6.3\,\% and 7.3\,\% under
+light, moderate and heavy rain. \emph{Rain and city-level congestion.} Work on Guangzhou and
+Shenzhen~\cite{frontiers2026rain} models the nonlinear relation between daily rainfall, a
+city-wide congestion index and metro ridership. \emph{The 2025 Black Rainstorms} are analysed
+meteorologically in~\cite{arxiv2025black}. Prior work thus uses either one road or a daily
+city-wide index; we work at detector level across the territory, at 15-minute resolution,
+conditioned on official warning levels, and we make the preprocessing itself the variable.
+We do not claim novelty for the finding that rain slows traffic.
 
 \section{Data}
-%DATA%
+All sources are free Hong Kong government open data (Table~\ref{tab:sources}). The study
+months are May 2024, July 2025 and August 2025: wet-season months with, together, 41 Amber
+(76\,h), 18 Red (28\,h) and 5 Black (21\,h) rainstorm signals, including all four 2025 Black
+episodes (29 Jul, 2 Aug, 4--5 Aug, 14 Aug), and Typhoon Wipha (signal 10, 20 Jul 2025).
+
+\begin{table}[t]
+\centering
+\caption{Sources used (study months only)}
+\label{tab:sources}
+\footnotesize
+\begin{tabular}{@{}p{0.6cm}p{3.4cm}p{3.2cm}@{}}
+\toprule
+ID & Content & Resolution / size \\
+\midrule
+S1 & TD detector readings~\cite{td_detectors}: speed, volume, occupancy, s.d., valid flag & 30\,s $\times$ lane; 784 detectors; 332.9\,M readings \\
+S2 & TD detector locations & district, road, lat/lon, direction \\
+S3 & HKO Current Weather Report~\cite{hko_weather}: past-hour rainfall range per district & hourly $\times$ 18 districts; 2,231 bulletins \\
+S4 & HKO rainstorm warning signals~\cite{hko_warndb} & per signal (Amber, Red, Black) \\
+S5 & HKO tropical cyclone signals~\cite{hko_warndb} & per signal (1--10) \\
+S6 & Public holidays & per date \\
+S8 & HKO daily rainfall & per day (checks only) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+S1 and S3 come from the DATA.GOV.HK Historical Archive, which stores a copy of the live file
+each time it fetched it. This shapes the data more than any sensor does. \textbf{Missing
+periods:} the archive did not fetch every minute; 27.0\,\%, 46.6\,\% and 41.0\,\% of the 30-s
+periods are absent in the three months (at most 35\,min in a row), so missing data are
+\emph{absent rows}, not NA values. \textbf{Identical copies} of the same file are stored at
+several fetch times and must be deduplicated. \textbf{Midnight:} the 00:00:00 and 00:00:30
+periods carry the previous day's date. \textbf{Three truncated files} are byte-prefixes of
+complete copies fetched minutes apart. Inside S1, three quirks matter for the analysis:
+(a) with volume 0 the reported speed is the \emph{speed limit} (70, 80, 100, 50 or 110\,km/h
+in 99.9\,\% of cases), not a measurement; (b) \texttt{valid = N} readings (2.9\,\%) look normal,
+so only the flag identifies them; (c) speed 0 with volume $>0$ occurs in 0.17\,\% of readings
+with a mean of 11.3 vehicles per 30\,s and occupancy 36\,\%, physically impossible as a
+standstill; (d) speeds above 130\,km/h (up to 300) occur in 0.56\,\%. Volume is 0 in
+20.2\,\% of readings. In S3 the rainfall of a district is a range (e.g.\ ``10 to 20\,mm'') over several
+gauges, a district with no rain is simply not listed, and three hourly bulletins are missing.
 
 \section{Design and Implementation}
-%DESIGN%
+\subsection{Pipeline overview}
+The pipeline has three layers, each written to Parquet and processed with
+DuckDB~\cite{raasveldt2019duckdb} (the S1 layer does not fit in the 16\,GB of memory we used).
+\textbf{L1} parses every raw file \emph{as written}: all values stay strings, nothing is
+trimmed, dropped or renamed, and structure checks (field sets, value forms, duplicates) run
+here. \textbf{L2} cleans each source separately by explicit rules; every rule has an ID, the
+evidence behind it, who decided it, and its row counts in a cleaning record. \textbf{L3} joins
+the sources into one analysis table, one row per detector and 15-minute slot; each of its
+steps has a default and alternatives (P1--P11) so that RQ3 can rebuild it with one choice
+changed (about one minute per build).
+
+Two principles, agreed with the course teacher, guide L2. First, \emph{fail loudly}: a case
+that no rule covers raises an error with the offending rows instead of being passed through
+or given a default, so a wrong assumption stops the pipeline where it is wrong. Second,
+\emph{no NA in L2, with the method chosen by the kind of problem}: a few missing values with
+trustworthy neighbours are estimated (and flagged), a value given twice is averaged (and
+flagged), and rare bad data in a large source are dropped, after checking that the dropped
+rows do not cluster in rain periods.
+
+\subsection{L2 cleaning rules}
+Table~\ref{tab:l2} lists the rules that change data. Beyond these, L2 types every field,
+trims spaces (2.9\,M S1 readings had a trailing space in \texttt{direction}), and renames
+repeated lane names (\texttt{Middle Lane} twice in one detector, 98\,k blocks) by position.
+Two rules came from checks failing: S1 \texttt{occupancy = -1} occurs 7,687 times, always with
+volume 0 (set to 0); and three tropical-cyclone signals from the 1950s had a duration one hour
+longer than end minus start. All three start with an undocumented flag \texttt{S} and end with
+\texttt{X}; reading \texttt{S} as Hong Kong summer time (used until 1979) makes all 1,262
+durations consistent, so \texttt{S} times are shifted to HKT.
+
+\begin{table}[t]
+\centering
+\caption{L2 rules that change, estimate or drop data (three months)}
+\label{tab:l2}
+\footnotesize
+\begin{tabular}{@{}p{3.9cm}p{1.1cm}p{2.3cm}@{}}
+\toprule
+Problem & Method & Rows \\
+\midrule
+S1 00:00 periods dated the day before & re-date & 329,465 \\
+S1 lanes listed twice in one block (AID02215) & mean & 4 $\to$ 2 \\
+S1 direction absent for 4 new detectors & fill from later S1 & 268,072 \\
+S1 detector reporting a bad 3-lane layout (TDS90026, 2025) & drop & 1,846 blocks \\
+S1 Slow Lane absent (TDS90036) & ratio estimate & 2,022 blocks \\
+S1 lanes missing in a single block & drop & 40 blocks \\
+S1 occupancy $-1$ (volume 0) & set 0 & 7,687 \\
+S3 district not listed in bulletin & 0\,mm & 33,340 \\
+S3 hourly bulletin missing & interpolate & 3 hours \\
+S3 same hour in two bulletins & keep one (equal) & 2 hours \\
+S5 summer-time flag & $-1$\,h & 451 signals \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The estimate for TDS90036 uses the detector's own hour-of-day ratios from its complete blocks
+in the same month: the missing Slow Lane volume is the other lanes' volume times the ratio of
+Slow to other-lane volume (1.2--5.9\,\% by hour), speed the other lanes' mean times the median
+speed ratio. Of the 1,846 dropped TDS90026 blocks, 0.9\,\% (July) and 9.4\,\% (August) fall
+in a rainstorm warning, against 4.3\,\% and 8.9\,\% of each month's time, so the drop does not
+remove rain periods preferentially.
+
+\subsection{L3: the analysis table}
+Table~\ref{tab:l3} gives the L3 steps. Two defaults differ from our proposal, both for reasons
+found in the data. \textbf{P2:} the proposal filtered outliers with a per-detector robust
+z-score; but the slow-downs this project studies \emph{are} outliers relative to a detector's
+normal speed, so the default keeps only physical bounds and the z-score becomes an RQ3
+alternative. \textbf{P10:} a baseline per month left 91\,\% of July 2025 Saturday slots without
+three dry reference slots (4 Saturdays, 2 under a cyclone signal); pooling July and August
+(both school summer holidays) and treating signals below 8 as dry fixes this. The speed of a
+slot is volume-weighted (P4), which gives the placeholder speeds of empty lanes weight 0.
+
+\begin{table}[t]
+\centering
+\caption{L3 steps: default (and RQ3 alternatives)}
+\label{tab:l3}
+\footnotesize
+\begin{tabular}{@{}p{0.55cm}p{7.0cm}@{}}
+\toprule
+P1 & Drop lane readings with \texttt{valid = N} (keep; drop the whole detector period) \\
+P2 & Drop speed 0 or $>130$ with volume $>0$ (none; + robust $|z|>5$ per lane) \\
+P3 & Drop lane slots identical for $\geq 2$ slots, 1,122 found (keep) \\
+P4 & Speed $=\sum v_i s_i / \sum v_i$; flow in veh/h; mean occupancy (mean of all readings; slowest lane) \\
+P5 & 15-min slots (5 min; 60 min) \\
+P6 & Interpolate 1--2 missing slots, flagged, 25,787 (none) \\
+P7 & Own district, midpoint of range (upper bound; territory maximum) \\
+P8 & Rain of the hour the slot is in (the hour before) \\
+P9 & Level 0--3 and minutes since the episode began (any warning; none) \\
+P10 & Ratio to median of dry slots, same detector, season, day type, slot of day (per month; all months) \\
+P11 & Leave out TC signal $\geq 8$ (keep) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The resulting table has 6,430,886 rows (784 detectors). The main quantity is the
+\emph{speed ratio}: the slot's speed divided by the detector's dry-weather median for the same
+season, day type (weekday, Saturday, Sunday or holiday) and time of day. The flow ratio is
+defined in the same way. A slot is \emph{dry} if its district had no rain in that hour and the
+hour before, no rainstorm warning and a cyclone signal below 8.
+
+\subsection{Methods}
+\textbf{RQ1.} Per detector, $s_{\mathrm{warn}}$ is the median speed ratio under Red or Black
+minus 1 (Red and Black pooled; Black alone is four episodes) and $s_{\mathrm{rain}}$ the same
+with district rain $\geq 10$\,mm/h. Because districts received different amounts of rain,
+we also compute an exposure-adjusted $s_{\mathrm{warn}}$ (removing the linear dependence on
+the median district rain while Red/Black was in force) and a per-detector rain slope from a
+mixed model, ratio $\sim$ rain $+ (1+\mathrm{rain}\,|\,\mathrm{detector})$, on 300\,k wet
+slots. Stability is tested by splitting the rain events into two halves.
+\textbf{RQ2.} On the 42 event days (a warning or $\geq 10$\,mm/h somewhere; consecutive days
+merged into 22 events) we predict the speed ratio and a congestion flag (ratio $<0.7$). The
+baseline predicts ratio 1 (the dry profile for that detector and time); we compare ridge /
+logistic regression and LightGBM~\cite{ke2017lightgbm} with four feature sets. Folds are
+grouped by event, so a storm is never in both training and test data. \textbf{RQ3.} Each
+alternative in Table~\ref{tab:l3} is applied alone; we report the Spearman correlation of
+$s_{\mathrm{warn}}$ with the default ranking, the overlap of the 20 most sensitive detectors,
+the headline ratios, and the LightGBM skill $1-\mathrm{MAE}/\mathrm{MAE}_{\mathrm{baseline}}$
+(the target itself changes with the variant, so skill is the comparable measure).
 
 \section{Evaluation}
-%EVAL%
+\subsection{Exploration: rain, warnings, speed and flow}
+Fig.~\ref{fig:events} shows the rain and warnings of the three months. Table~\ref{tab:levels}
+and Fig.~\ref{fig:rain} summarise the speed and flow ratios (cyclone signal $\geq 8$ left
+out). Speed falls monotonically with the rain in the detector's district: without a warning
+from 0.976 at 0--5\,mm/h to 0.888 above 40\,mm/h, and under a warning from 0.951 to 0.825.
+By warning level, however, the ordering breaks: the median speed ratio is 0.940 under Amber,
+0.918 under Red but 0.937 under Black. The flow ratio explains why: it is 0.93 and 0.90 under
+Amber and Red but 0.62 under Black, and it stays near 0.62 in every rain bin, even where the
+district had no rain at all (where the Black speed ratio is 1.007, faster than normal).
+At equal local rain, speed under Black is never below that under Amber or Red up to
+40\,mm/h, and above Red in every bin (Fig.~\ref{fig:rain}, left); only above 40\,mm/h is
+Black the slowest.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_events.pdf}
+\caption{Highest district rainfall per hour and rainstorm warnings (shaded Amber, Red,
+Black) in the three months; ticks mark cyclone signal $\geq 8$.}
+\label{fig:events}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Median ratios to the dry baseline by warning level (15-min detector slots)}
+\label{tab:levels}
+\footnotesize
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Warning & Slots & Speed & Speed P10 & Flow \\
+\midrule
+None & 5,988,953 & 0.999 & 0.940 & 1.000 \\
+Amber & 217,036 & 0.940 & 0.817 & 0.930 \\
+Red & 75,776 & 0.918 & 0.770 & 0.902 \\
+Black & 66,391 & 0.937 & 0.785 & 0.620 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_level_at_equal_rain.pdf}
+\caption{Median speed ratio (left) and flow ratio (right) by district rain and warning level.
+At equal local rain the warning level changes flow far more than speed.}
+\label{fig:rain}
+\end{figure}
+
+The 5~August 2025 Black Rainstorm (Fig.~\ref{fig:black}) shows the mechanism in time. The
+Black signal was issued at 05:50; at 06:00 the median speed ratio reached its minimum of 0.77
+while the morning traffic was already on the road. Flow then collapsed to 0.38 of normal by
+about 09:00 and speed recovered to 1.0 by 16:00, while Black was still in force. After the
+signal was cancelled at 17:05, flow stayed near half of normal through the evening. We read
+this as a demand response to the Black signal (under the Labour Department's code of practice,
+employees are generally not required to report for work~\cite{labour_code}); see
+Section~\ref{sec:discussion} for the hypotheses and checks.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eda_black_20250805.pdf}
+\caption{5 August 2025: median speed and flow ratio over detectors, highest district rain
+(bars) and warning level (shading), from 18:00 on 4 August to 06:00 on 6 August.}
+\label{fig:black}
+\end{figure}
+
+\subsection{RQ1: sensitivity ranking}
+781 detectors have at least 20 Red/Black slots. Their $s_{\mathrm{warn}}$ has median
+$-0.075$ (interquartile range $-0.114$ to $-0.044$); the most sensitive detector falls by
+21\,\%. The ranking is a stable property of the road: $s_{\mathrm{warn}}$ and
+$s_{\mathrm{rain}}$ correlate at $\rho=0.93$, and computed on two disjoint halves of the rain
+events the rankings correlate at 0.84 ($s_{\mathrm{warn}}$) and 0.90 ($s_{\mathrm{rain}}$).
+But $s_{\mathrm{warn}}$ also correlates at $-0.51$ with the rain the detector's district
+actually received while Red or Black was in force (median 5\,mm/h in North District,
+14.5\,mm/h on the Islands). Half of the ``district pattern'' of a warning-based ranking is
+therefore exposure, not sensitivity. After adjusting (Fig.~\ref{fig:rq1}), the Kowloon urban
+districts (Yau Tsim Mong, Kowloon City, Sham Shui Po, Kwun Tong) remain the most sensitive;
+North District moves up and the Islands move down (their expressways had the most rain but
+fall least per mm). 13 of the 20 most sensitive detectors are the same before and after
+adjustment; they are urban corridors and their approaches: Tseung Kwan O Road, Kwun Tong
+Bypass, Lung Cheung Road, West Kowloon Corridor, Chatham Road North and Lion Rock Tunnel
+Road. The mixed model gives a mean slope of $-0.034$ speed ratio per 10\,mm/h (s.e.\ 0.001)
+with a between-detector standard deviation of 0.035: the slope itself varies as much as its
+mean. Baseline occupancy correlates \emph{positively} with $s_{\mathrm{warn}}$
+($\rho=+0.25$): busier roads lose \emph{less} of their normal speed.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{rq1_map_districts.pdf}
+\caption{Left: $s_{\mathrm{warn}}$ per detector (circled: 20 most sensitive). Right: median
+per district, raw and adjusted for rain exposure.}
+\label{fig:rq1}
+\end{figure}
+
+\subsection{RQ2: prediction during rain events}
+The 42 event days hold 2.83\,M slots; 1.1\,\% are congested (ratio $<0.7$), 3.9\,\% under
+Red/Black. Table~\ref{tab:rq2} gives the five-fold, event-held-out results. LightGBM with rain
+and warning features reduces the MAE on wet slots from 0.079 (baseline) to 0.057, a 28\,\%
+reduction, and on Red/Black slots from 0.111 to 0.072 ($-36$\,\%). The feature sets separate
+the two kinds of information: rain features alone reach 0.057, warning features alone only
+0.067, and adding warnings to rain changes the MAE by 0.0006. In the gain importance the
+district rain of the hour (35\,\%) and of the hour before (24\,\%) dominate; the warning level
+has 2\,\%. Congestion as a class is hard: F1 stays at 0.14--0.17 for all models, far below
+what the regression gain would suggest.
+
+\begin{table}[t]
+\centering
+\caption{RQ2: mean over 5 event-held-out folds (MAE of speed ratio; F1 of ratio $<0.7$)}
+\label{tab:rq2}
+\footnotesize
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+Model & Features & MAE wet & MAE R/B & F1 R/B \\
+\midrule
+Baseline & ratio = 1 & 0.0792 & 0.1113 & 0.000 \\
+Ridge / logistic & +rain+warning & 0.0638 & 0.0818 & 0.091 \\
+LightGBM & time+road & 0.0731 & 0.1033 & 0.164 \\
+LightGBM & +rain & 0.0574 & 0.0725 & 0.157 \\
+LightGBM & +warning & 0.0665 & 0.0846 & 0.137 \\
+LightGBM & +rain+warning & 0.0568 & 0.0717 & 0.167 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{RQ3: how much does preprocessing matter?}
+\label{sec:rq3}
+Each of the 18 alternatives in Table~\ref{tab:l3} was run with every other step at its
+default: the L3 table is rebuilt (75--160\,s each), RQ1 is recomputed, and LightGBM with all
+features is refitted on folds fixed by event and 1\,M training slots per fold. Because the
+target itself changes with the variant, we compare \emph{skill} ($1-\mathrm{MAE}/\mathrm{MAE}$
+of the ratio-$=1$ baseline on the same slots) rather than raw MAE. Table~\ref{tab:rq3} and
+Fig.~\ref{fig:rq3} give the results. Variants whose RQ2 data are unchanged (P6: RQ2 already
+leaves interpolated slots out) give skill 0.277--0.280, so differences below about 0.005 are
+noise from subsampling.
+
+\begin{table}[t]
+\centering
+\caption{RQ3: one preprocessing alternative at a time. $\rho$: Spearman of $s_{\mathrm{warn}}$
+with the default over 781 detectors; top-20: overlap of the 20 most sensitive; Black: median
+speed ratio; cong.: share of Red/Black slots with ratio $<0.7$; skill and F1 as in RQ2}
+\label{tab:rq3}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrrrrr@{}}
+\toprule
+Variant & $\rho$ & top-20 & Black & cong. & skill & F1 \\
+\midrule
+Default & 1.000 & 20 & 0.937 & 3.9\,\% & 0.278 & 0.168 \\
+P1 keep \texttt{valid}=N & 0.999 & 18 & 0.937 & 4.0\,\% & 0.280 & 0.159 \\
+P1 drop period if any N & 1.000 & 20 & 0.937 & 3.9\,\% & 0.280 & 0.161 \\
+P2 no bounds & 0.995 & 20 & 0.936 & 4.2\,\% & 0.273 & 0.165 \\
+P2 bounds + robust $z$ & 0.998 & 17 & 0.937 & 3.0\,\% & 0.290 & 0.138 \\
+P3 keep stuck lanes & 1.000 & 20 & 0.937 & 3.9\,\% & 0.279 & 0.165 \\
+P4 mean of readings & \textbf{0.914} & \textbf{11} & 0.961 & 1.7\,\% & 0.277 & 0.124 \\
+P4 slowest lane & \textbf{0.915} & \textbf{11} & 0.936 & 6.2\,\% & 0.221 & 0.210 \\
+P5 5-min slots & 0.994 & 18 & 0.934 & 4.9\,\% & 0.215 & 0.172 \\
+P5 60-min slots & 0.982 & 15 & 0.935 & 2.6\,\% & \textbf{0.378} & 0.148 \\
+P6 no interpolation & 1.000 & 20 & 0.937 & 3.9\,\% & 0.279 & 0.161 \\
+P7 rain upper bound & -- & 20 & 0.937 & 3.9\,\% & 0.274 & 0.162 \\
+P7 territory maximum & -- & 20 & 0.937 & 3.9\,\% & \textbf{0.212} & 0.137 \\
+P8 rain of hour before & -- & 20 & 0.937 & 3.9\,\% & 0.233 & 0.144 \\
+P9 warning any/none & -- & 20 & 0.937 & 3.9\,\% & 0.277 & 0.155 \\
+P9 no warning features & -- & 20 & 0.937 & 3.9\,\% & 0.272 & 0.144 \\
+P10 baseline per month & 0.995 & 18 & 0.939 & 3.9\,\% & 0.273 & 0.159 \\
+P10 baseline all months & 0.989 & 16 & 0.935 & 3.9\,\% & 0.280 & 0.164 \\
+P11 keep TC signal $\geq 8$ & 0.998 & 19 & 0.937 & 3.9\,\% & 0.272 & 0.158 \\
+\bottomrule
+\end{tabular}
+\\[2pt]
+{\scriptsize --: RQ1 does not use the changed feature (it uses the midpoint rain of the hour
+and the warning level), so the ranking is unchanged by construction.}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\textwidth]{rq3_ablation.pdf}
+\caption{RQ3: each alternative against the default (grey bar, black line).}
+\label{fig:rq3}
+\end{figure*}
+
+\emph{How speed is measured matters most.} The lane-to-detector aggregation (P4) is the only
+step that reorders the ranking substantially: with either alternative only 11 of the 20 most
+sensitive detectors remain. Averaging all readings lets the empty-lane readings, whose
+``speed'' is the posted limit, dilute every ratio towards 1 (Black 0.961 instead of 0.937) and
+halves the congested share; taking the slowest lane does the opposite (6.2\,\% congested,
+higher F1, lower skill). \emph{The time resolution changes what can be predicted}: skill is
+0.215 at 5\,min, 0.278 at 15\,min and 0.378 at 60\,min, because the rain input is hourly and a
+longer slot averages out the variation that rain cannot explain; the ranking still keeps 15 of
+20. \emph{The rain assignment matters for prediction only}: the territory maximum instead of the
+own district's rain lowers skill by a quarter (0.278 to 0.212), and the rain of the hour before
+instead of the current hour lowers it to 0.233; the upper bound of the range is as good as the
+midpoint. Warning features, by contrast, change skill by 0.006 when removed, though they help
+the congestion classifier (F1 0.168 to 0.144). \emph{An outlier rule can remove the
+phenomenon}: the robust $z$ rule (P2) raises skill to 0.290, but the 1.73\,M readings it adds to
+the exclusions are mostly slow (72\,\% below the lane median; median 20\,km/h on lanes with a
+median of 72\,km/h) and over-represented under Red and Black (1.7 times their share of the
+kept readings), so it removes a quarter of the congestion under Red/Black (3.9 to 3.0\,\%) and
+F1 falls. \emph{The steps most discussed during cleaning matter least}: the validity flag (P1),
+stuck sensors (P3), gap interpolation (P6) and the cyclone filter (P11) all keep
+$\rho\geq0.998$ and change skill by less than the noise. The baseline (P10) is in between: a
+single baseline for all three months keeps 16 of the top 20.
+
 
 \section{Discussion}
-%DISCUSSION%
+\label{sec:discussion}
+Several results differ from what we expected. We state them as hypotheses with the check that
+would confirm or reject each; none is verified yet.
+
+\textbf{H1: the Black paradox is a demand effect.} Under Black the speed ratio is higher than
+under Red because fewer vehicles travel: flow is 0.62 of normal in every rain bin, including
+districts without rain, and keeps falling with time since the signal (0.95 in the first
+30\,min, 0.52 after 8\,h). \emph{Against:} there are only four Black episodes, three on
+weekdays, and 5 August dominates. \emph{Check:} per-episode curves; weekday vs weekend
+episodes; a regression of speed ratio on rain, flow ratio and level.
+
+\textbf{H2: the warning level is a territory-wide label; local rain drives speed.} At equal
+district rain the levels differ by at most 0.03 in speed ratio below 40\,mm/h, and in RQ2 the
+warning features add almost nothing to rain features. RQ3 agrees: replacing the district's
+rain by the territory maximum, which is what a territory-wide signal summarises, lowers skill
+by a quarter. \emph{Check:} rain of neighbouring districts and of the route; the radar nowcast
+at the detector.
+
+\textbf{H3: the speed shock is at warning onset.} On 5 August the minimum speed ratio came 10
+minutes after the Black signal, and speed recovered while Black was still in force.
+\emph{Against:} pooled over all episodes the speed ratio is flat in time since issue (Amber
+0.94 throughout). \emph{Check:} episode curves aligned at issue time, weekday mornings only.
+
+\textbf{H4: a warning adds a slow-down beyond the district rain} (at 20--40\,mm/h: 0.926
+without, 0.870 with a warning): either rain elsewhere on the route, or the hourly district
+range misses short intense bursts. \emph{Check:} add neighbouring districts' rain; S7 radar
+nowcast at 6-min resolution.
+
+\textbf{H5: sensitive roads are near capacity, yet busier roads lose less in ratio}
+($\rho=+0.25$ with baseline occupancy). A ratio has less room to fall where the dry baseline
+is already slow, and demand relief helps busy roads most. \emph{Check:} rank on the speed
+difference in km/h instead of the ratio; road class from the road network data.
+
+\textbf{H6: congestion is local.} Speed ratio $<0.7$ is predicted with F1 0.14--0.17 although
+the MAE improves by 28\,\%; incidents, flooded lanes or closures would explain this.
+\emph{Check:} join the Transport Department's special traffic news to the congested slots.
+
+\textbf{H7: stuck presence readings mark flooding or closures.} All 1,122 lane slots removed
+by P3 read occupancy 100 with speed and volume 0; the day with most is 20 July 2025, under
+cyclone signal 10 (10 detectors). \emph{Check:} traffic news for those roads.
+
+\textbf{H8: robust outlier rules delete rain congestion.} The $z$ rule's extra exclusions are
+slow readings concentrated in warning periods (Section~\ref{sec:rq3}). A per-lane
+distribution over three months treats a real queue as an outlier. \emph{Check:} compare the
+excluded readings with the neighbouring lanes and detectors in the same 30\,s; a conditional
+rule (outlier relative to the same slot of day, or only when the neighbours disagree).
+
+\textbf{H9: the P4 alternatives reorder the ranking through the empty-lane placeholder and
+lane mix.} Mean-of-readings dilutes by the share of empty lanes, which is highest on quiet
+roads and at night; slowest-lane follows the slow or exit lane. \emph{Check:} ranking with a
+volume-weighted mean restricted to the same lanes over time; per-lane sensitivity.
+
+\textbf{H10: the gain at 60\,min is resolution matching, not a better model.} Rain is an
+hourly district range, so at 15 and 5\,min the target has variation the input cannot see.
+\emph{Check:} 15-min targets with the 6-min radar nowcast (S7); skill at 60\,min without rain
+features.
+
+\textbf{Limitations.} Three months, four Black episodes; rainfall is an hourly range per
+district, not a gauge at the road; the archive misses 27--47\,\% of the 30-s periods; the
+baseline assumes the dry days of a season are comparable; we have no incident data in the
+model.
 
 \section{Conclusion}
-%CONCLUSION%
+Joining detector, rainfall and warning data at 15-minute detector level shows that where it
+rains matters more than which signal is hoisted: speed follows the district's rain, the
+warning level mostly changes how many people travel, and a sensitivity ranking built on
+warnings must be adjusted for exposure before it says anything about the road. With that
+adjustment the Kowloon urban corridors stand out. Rain features make storm-time speed
+predictable in aggregate, but congestion episodes remain largely unexplained. For the
+preprocessing, the lesson of the ablation is that the consequential choices are those that
+define the quantity being measured (speed aggregation, slot length, rain assignment, what
+counts as an outlier), not the ones that decide which few readings to keep. The next steps are
+the checks listed with H1--H10: per-episode analysis of the Black paradox, traffic news for
+congestion and stuck sensors, radar rainfall at the detector, and more months.
 
 \section*{Acknowledgements}
 [Contribution of each group member: to be written by the group.]
