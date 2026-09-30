@@ -101,8 +101,8 @@ days out of a bundle with HTTP range requests.
 ## Processing
 
 Layers: **L1** is the raw files as written, in Parquet. Every value is kept as a string, an
-absent element is null and an empty one is `""`. **L2** (cleaning rules, to be recorded in
-`docs/cleaning.md`) is not started yet. The earlier pipeline was removed on 2026-09-29; it is in
+absent element is null and an empty one is `""`. **L2** (cleaning; decisions and open
+questions in [`docs/cleaning.md`](docs/cleaning.md)) is not started yet. The earlier pipeline was removed on 2026-09-29; it is in
 the git history before that date.
 
 L1 from the monthly bundles in `data/raw/` (any months; the parsers read the months listed in

@@ -79,8 +79,8 @@ S6 这一项是 2026-09-30 加进 plan 的，下载时每个版本单独建一�
 | `holidays` | `calendar/public_holidays.csv` | S6，所有存档版本合并（较新的版本覆盖较旧的）。这是加工过的结果，不是原始数据：L1 读的是存档的各个版本 |
 
 两边都有的版本已逐字节核对，`src.download` 的副本已删除。
-这些数据的数据字典是手动存进 `hko/data-dictionary/`、`calendar/data-dictionary/` 和 `td/data-dictionary/` 的（见"数据字典"一节）。
-`calendar/data-dictionary/` 里 S6 的 4 份数据字典，与现在 plan 下载的那 4 份逐字节相同。
+这些数据的数据字典是手动存进 `hko/data-dictionary/` 和 `td/data-dictionary/` 的（见"数据字典"一节）。
+S6 的数据字典原来放在 `calendar/data-dictionary/`，与现在 plan 下载的逐字节相同，已于 2026-09-30 删除。
 
 ---
 
@@ -115,7 +115,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | S9、S10 | `dataspec-traffic-data-slp.pdf`（20231228、20240418） | 一种：XML 结构与 S1 相同 |
 | S3 | `HKO_Open_Data_API_Documentation.pdf`（11 个版本） | 三种；它说明的是 JSON API，**不是我们用的 RSS 文件** |
 | S4、S5 | `hko/data-dictionary/hko-webpage-warndb3.shtml.html`、`…warndb1.shtml.html` | **没有官方数据字典**：保存的是天文台数据库网页（2026-09-29），里面有临时记录、信号编号沿革等说明 |
-| S6 | `www.1823.gov.hk/common/ical/en.json/data-dictionary/…-1823_cal_dictionary.pdf`（4 个版本；`calendar/data-dictionary/` 里有相同的副本） | – |
+| S6 | `www.1823.gov.hk/common/ical/en.json/data-dictionary/…-1823_cal_dictionary.pdf`（4 个版本） | – |
 | S7 | `HKO_gridded_rainfall_nowcast_documentation.pdf`（6 个版本） | 一种 |
 | S8 | `hko/data-dictionary/20250227-data_dictionary_daily_total_rainfall.pdf` | – |
 | S12 | `rdnet_dataspec.zip`（5 个版本）：FGDB、GML、KML 各一份 PDF | – |

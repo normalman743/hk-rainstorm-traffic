@@ -87,10 +87,9 @@ versions the plans do not include:
 | `holidays` | `calendar/public_holidays.csv` | S6, all archived versions merged (later versions win). Derived, not raw: L1 reads the archived versions |
 
 Versions in both places were checked byte for byte and the `src.download` copies deleted.
-Their data dictionaries were saved by hand into `hko/data-dictionary/`,
-`calendar/data-dictionary/` and `td/data-dictionary/` (see [Data dictionaries](#data-dictionaries)).
-The 4 S6 dictionaries in `calendar/data-dictionary/` are byte-identical to the ones the plan now
-downloads.
+Their data dictionaries were saved by hand into `hko/data-dictionary/` and `td/data-dictionary/`
+(see [Data dictionaries](#data-dictionaries)). The S6 ones, once in `calendar/data-dictionary/`,
+were byte-identical to those the plan now downloads and were deleted on 2026-09-30.
 
 ---
 
@@ -130,7 +129,7 @@ the table names the distinct ones.
 | S9, S10 | `dataspec-traffic-data-slp.pdf` (20231228, 20240418) | one: same XML structure as S1 |
 | S3 | `HKO_Open_Data_API_Documentation.pdf` (11 versions) | three; it documents the JSON API, **not the RSS file** we use |
 | S4, S5 | `hko/data-dictionary/hko-webpage-warndb3.shtml.html`, `…warndb1.shtml.html` | **no official dictionary**: the HKO database web pages, saved 2026-09-29 (notes on provisional records, signal-number history) |
-| S6 | `www.1823.gov.hk/common/ical/en.json/data-dictionary/…-1823_cal_dictionary.pdf` (4 versions; identical copies in `calendar/data-dictionary/`) | – |
+| S6 | `www.1823.gov.hk/common/ical/en.json/data-dictionary/…-1823_cal_dictionary.pdf` (4 versions) | – |
 | S7 | `HKO_gridded_rainfall_nowcast_documentation.pdf` (6 versions) | one |
 | S8 | `hko/data-dictionary/20250227-data_dictionary_daily_total_rainfall.pdf` | – |
 | S12 | `rdnet_dataspec.zip` (5 versions): one PDF each for FGDB, GML, KML | – |

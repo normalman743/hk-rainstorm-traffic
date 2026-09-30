@@ -95,7 +95,7 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 ## 数据处理
 
 分层：**L1** 是原始文件的原样内容，存为 Parquet：所有值都是字符串，元素不存在记为 null，元素为空记为 `""`。
-**L2**（清洗规则，将记录在 `docs/cleaning.md`）还没开始。之前的流程已于 2026-09-29 删除，该日期之前的 git 历史里还能找到。
+**L2**（清洗；已定的规则和待定的问题见 [`docs/cleaning.md`](docs/cleaning.md)）还没开始。之前的流程已于 2026-09-29 删除，该日期之前的 git 历史里还能找到。
 
 从 `data/raw/` 里的月度打包文件生成 L1（月份任意；解析程序只处理 manifest 里登记的月份）：
 

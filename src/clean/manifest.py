@@ -10,6 +10,8 @@ months, every zip member becomes one row of
         bundle, index, member, fetch_time, size, crc32, group, n_copies
 
 - `index` is the member's position in the zip (a name can occur twice, e.g. 20250805-2056).
+- `member` is the file name only, without the url-encoded folder in front of it in the zip
+  (`<url-encoded folder>/<member>`). Read a member by `index` (ZipFile.infolist()[index]).
 - `fetch_time` is YYYYMMDD-HHMM from the member name: when the archive fetched the file.
 - `group` = `bundle:index` of the first member with the same bytes (not the name, which
   can repeat); `n_copies` = group size.

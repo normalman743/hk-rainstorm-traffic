@@ -3,8 +3,13 @@ data/
 *.zip
 .ipynb_checkpoints/
 __pycache__/
+# DuckDB spill files: an in-memory DuckDB writes them to .tmp/ in the working directory
+.tmp/
 .venv/
 .DS_Store
 progress.md
 # Independent local checkout; this course project uses its downloaded data.
 /hkgovdata/
+
+# Local conversation between AI assistants.
+/ai_collaboration/
