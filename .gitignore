@@ -6,3 +6,5 @@ __pycache__/
 .venv/
 .DS_Store
 progress.md
+# Independent local checkout; this course project uses its downloaded data.
+/hkgovdata/

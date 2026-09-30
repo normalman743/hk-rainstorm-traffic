@@ -54,10 +54,13 @@ archive, so rainfall is matched to roads by district.
 ```bash
 pip install -r requirements.txt
 
+# Optional: install the independent archive tool when downloading again.
+python -m pip install "git+https://github.com/normalman743/hkgovdata.git"
+
 # DATA.GOV.HK Historical Archive, driven by plans (skips files already there; shows sizes and asks first)
-python -m hkdata.download run hkdata/plans/2024_2025_main.json --out data/raw          # 25.2 GB
-python -m hkdata.download run hkdata/plans/2024_2025_optional.json --out data/raw      # 28.1 GB
-python -m hkdata.download run hkdata/plans/road_network_2024_2025.json --out data/raw  #  0.6 GB
+python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw          # 25.2 GB
+python -m hkgovdata.download run plans/2024_2025_optional.json --out data/raw      # 28.1 GB
+python -m hkgovdata.download run plans/road_network_2024_2025.json --out data/raw  #  0.6 GB
 
 # Sources not in the archive, or versions the plans leave out (seconds)
 python -m src.download warnings         # S4, S5
@@ -66,9 +69,12 @@ python -m src.download static-history   # S2, S14 older versions
 python -m src.download holidays         # S6
 ```
 
-`hkdata` is a general DATA.GOV.HK library in this repository: `python -m hkdata.discover`
-finds datasets and shows what the archive holds; `python -m hkdata.download` turns a plan
-(which resources, which months) into archive requests. See the module docstrings.
+[`hkgovdata`](https://github.com/normalman743/hkgovdata) is an independent DATA.GOV.HK
+tool: `python -m hkgovdata.discover` finds datasets and checks archive coverage;
+`python -m hkgovdata.download` downloads a plan. This course repository keeps its own
+plans in `plans/`. Cleaning and analysis read `data/raw/` directly and do not require
+the tool to be installed. A local `hkgovdata/` checkout is ignored by this repository;
+install it with `python -m pip install -e ./hkgovdata` when developing the tool locally.
 
 ### How the archive is accessed
 
@@ -89,7 +95,7 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 
 A monthly traffic bundle is ~1 GB, and one day's XML unzipped is ~670 MB. The
 plans keep whole monthly bundles under `data/raw/<url host>/<url path>/bundle/`, next to each
-resource's data dictionaries (`data-dictionary/`). `hkdata.download` can also take single
+resource's data dictionaries (`data-dictionary/`). `hkgovdata.download` can also take single
 days out of a bundle with HTTP range requests.
 
 ## Processing
@@ -143,8 +149,8 @@ and the Black Rainstorm of 4–5 Aug 2025.
 .
 ├── README(.zh).md, PROPOSAL.md, requirements.txt
 ├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md, course_project.md
-├── hkdata/             # general DATA.GOV.HK library: discover (search, archive coverage), download (plans)
-│   └── plans/          # the download plans used for data/raw
+├── plans/              # this project's archive download plans
+├── hkgovdata/          # optional independent local checkout; git-ignored
 ├── src/
 │   ├── download/       # sources not in the plans: warnings, static files, holidays; day selection; fetch
 │   └── config.py       # paths and source URLs

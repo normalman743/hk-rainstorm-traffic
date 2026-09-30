@@ -18,20 +18,20 @@
 
 | 编号 | 来源（提供者） | 获取方式 | 频率 | 已下载 | 用途 | 状态 |
 |----|----------------|----------|------|--------|------|------|
-| S1 | [交通车速、车流及道路占用率（原始数据）](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads)，`rawSpeedVol-all.xml`（运输署） | 历史存档（`hkdata.download`） | 30 秒时段，每分钟发布 | 2024-01 至 2025-12（存档自 2021 年 6 月起；2021 年 11 月前只有 42 个探测器） | 目标变量 | **必需**；已下载 |
-| S2 | [交通探测器位置](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv)，CSV（运输署） | 历史存档（`hkdata.download`、`src.download static-history`） | 按版本 | 8 个版本，2021-08 至 2026-04 | 探测器属性、空间关联 | **必需**；已下载 |
-| S3 | [现时天气报告](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report)，`CurrentWeather.xml`（天文台） | 历史存档（`hkdata.download`） | 每小时 | 2024-01 至 2025-12（存档自 2021 年 6 月起） | **分区**过去一小时雨量 | **必需**；已下载 |
+| S1 | [交通车速、车流及道路占用率（原始数据）](https://data.gov.hk/en-data/dataset/hk-td-sm_4-traffic-data-strategic-major-roads)，`rawSpeedVol-all.xml`（运输署） | 历史存档（`hkgovdata.download`） | 30 秒时段，每分钟发布 | 2024-01 至 2025-12（存档自 2021 年 6 月起；2021 年 11 月前只有 42 个探测器） | 目标变量 | **必需**；已下载 |
+| S2 | [交通探测器位置](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/traffic_speed_volume_occ_info.csv)，CSV（运输署） | 历史存档（`hkgovdata.download`、`src.download static-history`） | 按版本 | 8 个版本，2021-08 至 2026-04 | 探测器属性、空间关联 | **必需**；已下载 |
+| S3 | [现时天气报告](https://data.gov.hk/en-data/dataset/hk-hko-rss-current-weather-report)，`CurrentWeather.xml`（天文台） | 历史存档（`hkgovdata.download`） | 每小时 | 2024-01 至 2025-12（存档自 2021 年 6 月起） | **分区**过去一小时雨量 | **必需**；已下载 |
 | S4 | [暴雨警告信号数据库](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb3.shtml)，`rstorm.dat`（天文台） | 直接下载（`src.download warnings`） | 每次事件 | 1998 年 3 月至今 | 每个时刻的警告状态 | **必需**；已下载；已解析 |
 | S5 | [热带气旋警告信号数据库](https://www.hko.gov.hk/en/wxinfo/climat/warndb/warndb1.shtml)，`tc.dat`（天文台） | 直接下载（`src.download warnings`） | 每次事件 | 1946 年至今 | 排除台风时段 | **必需**；已下载；已解析 |
 | S6 | [香港公众假期](https://data.gov.hk/en-data/dataset/hk-dpo-statistic-cal)，`en.json`（1823） | 直接下载 + 历史存档（`src.download holidays`） | 每年 | 各存档版本合起来覆盖 2018–2027 | 工作日 / 周末 / 假期 | **必需**；已下载；已解析 |
 | S8 | [逐日总雨量](https://data.gov.hk/en-data/dataset/hk-hko-rss-daily-total-rainfall)，`daily_HKO_RF_ALL.csv`（天文台） | 直接下载（`src.download static`） | 每天 | 1884 年至今 | 按日核对 | 辅助；已下载 |
-| S9 | [智能灯柱交通探测器](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts)，`rawSpeedVol_SLP-all.xml`（运输署） | 历史存档（`hkdata.download`） | 30 秒时段 | 2024-01 至 2025-12 | 额外的探测器（格式与 S1 相同） | 可选；已下载 |
-| S10 | 智能灯柱探测器位置，CSV（运输署） | 历史存档（`hkdata.download`） | 按版本 | 2023-12、2024-01 | S9 探测器的属性 | 可选；已下载 |
-| S11 | 路网路段车速（处理后数据），`irnAvgSpeed-all.xml`（运输署） | 历史存档（`hkdata.download`） | 约 1 分钟 | 2024-01 至 2025-12 | 运输署自己算的路段车速，用于交叉核对 | 可选；已下载 |
-| S14 | [路网路段](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv)，`speed_segments_info.csv`（运输署） | 历史存档（`hkdata.download`、`src.download static-history`） | 按版本 | 6 个版本，2021-08 至 2023-09 | S11 的路段 → 路线编号 | 可选；已下载 |
-| S12 | [第二代道路网络](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2)，`RdNet_IRNP.gdb.zip`（运输署） | 历史存档（`hkdata.download`） | 按版本 | 2024-01 至 2025-12（34 个版本） | S11 路段的几何（`ROUTE_ID`） | 可选；已下载 |
-| S13 | [特别交通消息（第二代）](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2)，`trafficnews.xml`（运输署） | 历史存档（`hkdata.download`） | 每条消息的每次更新 | 2024-01 至 2025-12 | 把事故 / 封路标记为干扰因素 | 可选；已下载 |
-| S7 | [格点雨量临近预报](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv)，CSV（天文台） | 历史存档（`hkdata.download`） | 约每 15 分钟 | 2024-01 至 2025-12（存档自约 2022 年 7 月起） | 局部（约 2 公里）雨量的代理变量 | 可选；已下载 |
+| S9 | [智能灯柱交通探测器](https://data.gov.hk/en-data/dataset/hk-td-tis_33-traffic-data-traffic-detectors-installed-at-smart-lampposts)，`rawSpeedVol_SLP-all.xml`（运输署） | 历史存档（`hkgovdata.download`） | 30 秒时段 | 2024-01 至 2025-12 | 额外的探测器（格式与 S1 相同） | 可选；已下载 |
+| S10 | 智能灯柱探测器位置，CSV（运输署） | 历史存档（`hkgovdata.download`） | 按版本 | 2023-12、2024-01 | S9 探测器的属性 | 可选；已下载 |
+| S11 | 路网路段车速（处理后数据），`irnAvgSpeed-all.xml`（运输署） | 历史存档（`hkgovdata.download`） | 约 1 分钟 | 2024-01 至 2025-12 | 运输署自己算的路段车速，用于交叉核对 | 可选；已下载 |
+| S14 | [路网路段](https://static.data.gov.hk/td/traffic-data-strategic-major-roads/info/speed_segments_info.csv)，`speed_segments_info.csv`（运输署） | 历史存档（`hkgovdata.download`、`src.download static-history`） | 按版本 | 6 个版本，2021-08 至 2023-09 | S11 的路段 → 路线编号 | 可选；已下载 |
+| S12 | [第二代道路网络](https://data.gov.hk/en-data/dataset/hk-td-tis_15-road-network-v2)，`RdNet_IRNP.gdb.zip`（运输署） | 历史存档（`hkgovdata.download`） | 按版本 | 2024-01 至 2025-12（34 个版本） | S11 路段的几何（`ROUTE_ID`） | 可选；已下载 |
+| S13 | [特别交通消息（第二代）](https://data.gov.hk/en-data/dataset/hk-td-tis_19-special-traffic-news-v2)，`trafficnews.xml`（运输署） | 历史存档（`hkgovdata.download`） | 每条消息的每次更新 | 2024-01 至 2025-12 | 把事故 / 封路标记为干扰因素 | 可选；已下载 |
+| S7 | [格点雨量临近预报](https://data.weather.gov.hk/weatherAPI/hko_data/F3/Gridded_rainfall_nowcast.csv)，CSV（天文台） | 历史存档（`hkgovdata.download`） | 约每 15 分钟 | 2024-01 至 2025-12（存档自约 2022 年 7 月起） | 局部（约 2 公里）雨量的代理变量 | 可选；已下载 |
 
 ### 考虑过但不使用的来源
 

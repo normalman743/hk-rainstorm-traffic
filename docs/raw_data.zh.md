@@ -43,8 +43,8 @@
 
 按数据来源分两个下载工具：
 
-**`hkdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S7、S9–S14（S14：1 个版本）。
-按 `hkdata/plans/` 里的 plan 下载；目录结构为 `data/raw/<网址主机>/<网址路径>/`：
+**`hkgovdata.download`（DATA.GOV.HK 历史存档）**：S1、S2（3 个版本）、S3、S7、S9–S14（S14：1 个版本）。
+按 `plans/` 里的 plan 下载；目录结构为 `data/raw/<网址主机>/<网址路径>/`：
 
 | Plan | 内容 | 大小 |
 |------|------|------|
@@ -53,7 +53,7 @@
 | `road_network_2024_2025.json` | S12 | 0.6 GB |
 
 ```bash
-python -m hkdata.download run hkdata/plans/2024_2025_main.json --out data/raw
+python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw
 ```
 
 ```
@@ -93,7 +93,7 @@ S1 和 S3 的实时网址永远只返回**最新**的文件。过去的版本要
 | `https://app.data.gov.hk/v1/historical-archive/get-schema` | `url`、`date` | 同上，取结构定义（例如 XSD） |
 
 交通数据的打包文件每月约 1 GB。包内文件名为
-`<URL 编码后的实时网址>/<YYYYMMDD-HHMM>-rawSpeedVol-all.xml`。`hkdata.download` 保存整个月度打包文件
+`<URL 编码后的实时网址>/<YYYYMMDD-HHMM>-rawSpeedVol-all.xml`。`hkgovdata.download` 保存整个月度打包文件
 （见"数据清单"一节），也可以用 HTTP 分段请求只取打包文件中某几天的文件。各接口在测试中的实际回应记录在它的模块说明里。
 
 **存档时间 ≠ 测量时间。** 版本的时间戳是存档系统抓取文件的时间，不是数据的测量时间（见 S1 和 S3）。

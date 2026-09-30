@@ -50,8 +50,8 @@ and HKO's JSON Current Weather Report (`weather.php?dataType=rhrread`); neither 
 
 Two downloaders, by where the data comes from:
 
-**`hkdata.download` (DATA.GOV.HK Historical Archive)** — S1, S2 (3 versions), S3, S7, S9–S14 (S14: 1 version).
-Driven by the plans in `hkdata/plans/`; layout `data/raw/<url host>/<url path>/`:
+**`hkgovdata.download` (DATA.GOV.HK Historical Archive)** — S1, S2 (3 versions), S3, S7, S9–S14 (S14: 1 version).
+Driven by the plans in `plans/`; layout `data/raw/<url host>/<url path>/`:
 
 | Plan | Contents | Size |
 |------|----------|------|
@@ -60,7 +60,7 @@ Driven by the plans in `hkdata/plans/`; layout `data/raw/<url host>/<url path>/`
 | `road_network_2024_2025.json` | S12 | 0.6 GB |
 
 ```bash
-python -m hkdata.download run hkdata/plans/2024_2025_main.json --out data/raw
+python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw
 ```
 
 ```
@@ -102,7 +102,7 @@ The live URLs of S1 and S3 always return the *latest* file. Past versions come f
 | `https://app.data.gov.hk/v1/historical-archive/get-schema` | `url`, `date` | Same, for the schema (e.g. XSD) |
 
 A traffic bundle is ~1 GB per month. Its members are named
-`<url-encoded live URL>/<YYYYMMDD-HHMM>-rawSpeedVol-all.xml`. `hkdata.download` keeps whole
+`<url-encoded live URL>/<YYYYMMDD-HHMM>-rawSpeedVol-all.xml`. `hkgovdata.download` keeps whole
 monthly bundles (see [Inventory](#inventory-on-disk-2026-09-29)); it can also take single days
 out of a bundle with HTTP range requests. Its module docstring records how every endpoint
 answered in tests.

@@ -51,10 +51,13 @@
 ```bash
 pip install -r requirements.txt
 
+# 需要重新下载存档时，另行安装独立的下载工具。
+python -m pip install "git+https://github.com/normalman743/hkgovdata.git"
+
 # DATA.GOV.HK 历史存档，按 plan 下载（已有的文件会跳过；先显示大小并询问）
-python -m hkdata.download run hkdata/plans/2024_2025_main.json --out data/raw          # 25.2 GB
-python -m hkdata.download run hkdata/plans/2024_2025_optional.json --out data/raw      # 28.1 GB
-python -m hkdata.download run hkdata/plans/road_network_2024_2025.json --out data/raw  #  0.6 GB
+python -m hkgovdata.download run plans/2024_2025_main.json --out data/raw          # 25.2 GB
+python -m hkgovdata.download run plans/2024_2025_optional.json --out data/raw      # 28.1 GB
+python -m hkgovdata.download run plans/road_network_2024_2025.json --out data/raw  #  0.6 GB
 
 # 历史存档里没有的来源，或 plan 没有包含的版本（几秒钟）
 python -m src.download warnings         # S4、S5
@@ -63,8 +66,11 @@ python -m src.download static-history   # S2、S14 的旧版本
 python -m src.download holidays         # S6
 ```
 
-`hkdata` 是本仓库里一个通用的 DATA.GOV.HK 工具库：`python -m hkdata.discover` 用来查找数据集、查看存档里有什么；
-`python -m hkdata.download` 把 plan（哪些资源、哪些月份）转成对存档的请求。详见各模块的说明文字。
+[`hkgovdata`](https://github.com/normalman743/hkgovdata) 是独立的 DATA.GOV.HK 工具：
+`python -m hkgovdata.discover` 用来查找数据集、查看存档覆盖情况；
+`python -m hkgovdata.download` 按 plan 下载。本课程仓库保留自己的 `plans/`。
+清洗和分析直接读取 `data/raw/`，不要求安装下载工具。本地的 `hkgovdata/` 独立仓库
+被外层 Git 忽略；开发工具时可执行 `python -m pip install -e ./hkgovdata`。
 
 ### 怎样访问历史存档
 
@@ -84,7 +90,7 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 
 交通数据的月度打包文件约 1 GB，一天的 XML 解压后约 670 MB。plan 把整个月度打包文件保存在
 `data/raw/<网址主机>/<网址路径>/bundle/`，旁边是该资源的数据字典（`data-dictionary/`）。
-`hkdata.download` 也可以用 HTTP 分段请求只取打包文件中的某几天。
+`hkgovdata.download` 也可以用 HTTP 分段请求只取打包文件中的某几天。
 
 ## 数据处理
 
@@ -127,8 +133,8 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 .
 ├── README(.zh).md, PROPOSAL.md, requirements.txt
 ├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md, course_project.md
-├── hkdata/             # 通用 DATA.GOV.HK 工具库：discover（搜索、存档覆盖情况）、download（按 plan 下载）
-│   └── plans/          # data/raw 用到的下载 plan
+├── plans/              # 本课程项目的存档下载 plan
+├── hkgovdata/          # 可选的独立本地仓库，外层 Git 忽略
 ├── src/
 │   ├── download/       # plan 之外的来源：警告、静态文件、假期；选日子；fetch
 │   └── config.py       # 路径和数据来源网址
