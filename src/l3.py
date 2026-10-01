@@ -21,7 +21,7 @@ data/interim/checks/l3_<name>_counts.csv. Columns:
         detector's dry slots of the same season, day_type and slot_of_day (P10); ratio = speed / base_speed,
         flow_ratio = flow / base_flow
 
-Steps and their options (PROPOSAL.md P1-P10; P9 and P11 are applied by the analysis):
+Steps and their options (docs/PROPOSAL.md P1-P10; P9 and P11 are applied by the analysis):
     P1 valid      drop: lane readings with valid = N are left out; keep: kept;
                   drop_block: the whole detector period is left out if any lane is N
     P2 outliers   bounds: a reading with volume > 0 and speed 0 or speed > SPEED_MAX is left

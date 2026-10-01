@@ -6,18 +6,28 @@
 
 > 课程项目。重点是**数据预处理与整合**：每一个主要的清洗 / 聚合 / 匹配决定都当作实验变量，
 > 衡量它如何改变后续结果。
-> 完整研究计划见 [`PROPOSAL.md`](PROPOSAL.md)；另见
+>
+> **报告草稿（IEEE 格式，PDF）：[`report/main.pdf`](report/main.pdf)。**
+> **后续研究数据**（整个 `data/` 文件夹，约 13 GB，截至 2026-10-01）：[Google Drive](https://drive.google.com/drive/folders/1PbwMZtaP58idOqs0kwuPo_p8RRdwfTlG?usp=sharing)；
+> 每个文件夹的内容和放置位置见 [`docs/findings_and_next.md`](docs/findings_and_next.md) 第 5 节。
+> 研究计划：[`docs/PROPOSAL.md`](docs/PROPOSAL.md)。目前的发现与后续工作：
+> [`docs/findings_and_next.md`](docs/findings_and_next.md)。清洗规则：
+> [`docs/cleaning.md`](docs/cleaning.md)。另见
 > [`docs/raw_data.zh.md`](docs/raw_data.zh.md)（每个原始数据来源和字段）、
 > [`docs/processing.zh.md`](docs/processing.zh.md)（每个处理步骤做什么）和
 > [`docs/database_description.zh.md`](docs/database_description.zh.md)（处理后的表）。
 
-## 当前进度（2026-09-29）
+## 当前进度（2026-10-01）
 
 - **数据：已齐全。** 分析需要的所有来源，加上可选的扩展数据，都已下载了 2024-01 至 2025-12
   （原始月度打包文件约 53 GB），每个都配有官方数据字典。
   清单见 [`docs/raw_data.zh.md`](docs/raw_data.zh.md) 的"数据清单"一节。
-- **下一步：数据处理。** 正在编写脚本，把原始打包文件处理成分析用的表。
-  之前按天处理的流程已删除（见"数据处理"一节）。
+- **流程：三个月已端到端跑通**（2024-05、2025-07、2025-08；主要来源 S1–S6、S8）：
+  L1 → L2（按来源清洗）→ L3（探测器 × 15 分钟分析表）→ EDA、RQ1、RQ2、RQ3。
+  报告草稿（[`report/main.pdf`](report/main.pdf)，6 页）由这些结果写成。
+- **下一步：** 审核 [`docs/cleaning.md`](docs/cleaning.md) 中标为 "pending review" 的决定，
+  验证各个假设（S13 交通消息、逐次黑雨分析）；见
+  [`docs/findings_and_next.md`](docs/findings_and_next.md)。
 
 ## 研究问题
 
@@ -27,7 +37,7 @@
 
 ## 数据来源
 
-全部是免费的香港政府公开数据。大文件都不提交：`data/` 已被 git 忽略，由下面的下载命令重新生成。
+全部是免费的香港政府公开数据。大文件都不提交：`data/` 已被 git 忽略，由下面的下载命令重新生成，或从 [Google Drive 上的后续研究数据](https://drive.google.com/drive/folders/1PbwMZtaP58idOqs0kwuPo_p8RRdwfTlG?usp=sharing)获取（三个月的原始文件、L1、L2、L3）。
 完整清单、文件位置、字段和数据问题见 [`docs/raw_data.zh.md`](docs/raw_data.zh.md)。
 
 | 编号 | 数据 | 提供者 | 粒度 | 硬盘上有 | 级别 |
@@ -95,7 +105,10 @@ curl -L -G "https://app.data.gov.hk/v1/historical-archive/get-file" \
 ## 数据处理
 
 分层：**L1** 是原始文件的原样内容，存为 Parquet：所有值都是字符串，元素不存在记为 null，元素为空记为 `""`。
-**L2**（清洗；已定的规则和待定的问题见 [`docs/cleaning.md`](docs/cleaning.md)）还没开始。之前的流程已于 2026-09-29 删除，该日期之前的 git 历史里还能找到。
+**L2**（清洗；已定的规则和待定的问题见 [`docs/cleaning.md`](docs/cleaning.md)）给每个主要来源定类型并清洗，每条规则都记录了处理数量。
+**L3** 是分析表，每个探测器每 15 分钟一行，带本区雨量、警告等级和干燥天气基线；每个预处理步骤
+（[`docs/PROPOSAL.md`](docs/PROPOSAL.md) 中的 P1–P11）都有默认做法和供 RQ3 比较的备选。
+之前按天处理的流程已于 2026-09-29 删除，该日期之前的 git 历史里还能找到。
 
 从 `data/raw/` 里的月度打包文件生成 L1（月份任意；解析程序只处理 manifest 里登记的月份）：
 
@@ -126,6 +139,28 @@ python -m src.clean.s1_rows --source s1 && python -m src.clean.s1_rows --source 
 python -m src.clean.s3_checks && python -m src.clean.s13_checks && python -m src.clean.s11_checks
 python -m src.clean.s7_checks && python -m src.clean.versions_checks
 python -m src.clean.structure         # S4 S5 S6 S8 S12：预设格式对照实际数据，列出所有例外
+```
+
+L2、L3、分析和报告（在 L1 之后；所需的包见 `requirements.txt`，报告需要装有 `latexmk` 的 LaTeX）：
+
+```bash
+# 4. L2 -> data/interim/l2/，处理数量写到 data/interim/checks/
+python -m src.clean.l2_s1 202405 202507 202508   # S1 读数，每月一个 Parquet
+python -m src.clean.l2_s3                          # S3 每小时每区雨量
+python -m src.clean.l2_ref                         # S2 探测器、S4 / S5 信号、S6 假期、S8 每日雨量
+
+# 5. L3 -> data/interim/l3/<名称>.parquet
+python -m src.l3                                   # 默认表
+python -m src.l3 speed_agg=mean                    # 变体：任意 选项=值（RQ3）
+
+# 6. 分析 -> report/figures/*.pdf、report/results/*.json|csv
+python -m src.analysis.eda
+python -m src.analysis.rq1
+python -m src.analysis.rq2
+python -m src.analysis.rq3                         # 会补建缺少的 L3 变体；约 40 分钟
+
+# 7. 报告 -> report/main.pdf
+cd report && latexmk -pdf main.tex
 ```
 
 解析程序遇到不认识的内容（新的元素、表头或文件格式）会直接报错，不会跳过：先看是什么情况，再决定怎么处理。
@@ -167,17 +202,64 @@ python -m src.clean.structure         # S4 S5 S6 S8 S12：预设格式对照实�
 
 ```
 .
-├── README(.zh).md, PROPOSAL.md, requirements.txt
-├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md, course_project.md
-├── plans/              # 本课程项目的存档下载 plan
-├── hkgovdata/          # 可选的独立本地仓库，外层 Git 忽略
+├── README.md, README.zh.md      # 本文件（英文 / 中文）
+├── requirements.txt             # Python 包（下载、L1、L2、L3、分析、测试）
+├── docs/
+│   ├── PROPOSAL.md              # 研究计划，按第一批结果重写（2026-10-01）
+│   ├── findings_and_next.md     # 目前的发现，以及接下来必须做 / 可以做的事（中文）
+│   ├── cleaning.md              # 每条 L2 规则（D1–D22）的证据、决定人和处理数量；待定问题；L3 选项
+│   ├── raw_data(.zh).md         # 每个原始来源的发布形式：获取方式、字段、取值、发现的问题
+│   ├── processing(.zh).md       # 原始来源怎样变成表：L1、L2、L3、分析、src.download
+│   ├── database_description(.zh).md  # 来源、表及其关联；已知数据问题
+│   ├── data_sources_notes.md    # 在用的来源与仅供参考的来源
+│   └── course_project.md        # 课程的项目要求（从 Canvas 复制）
+├── plans/                       # hkgovdata 的存档下载 plan（主要、可选、路网）
 ├── src/
-│   ├── download/       # plan 之外的来源：警告、静态文件、假期；选日子；fetch
-│   └── config.py       # 路径和数据来源网址
+│   ├── config.py                # 路径和数据来源网址
+│   ├── download/                # plan 之外的来源
+│   │   ├── __main__.py          # 命令行：warnings、static、static-history、holidays、select-days
+│   │   ├── archive.py           # DATA.GOV.HK 历史存档客户端
+│   │   ├── warnings.py          # 天文台暴雨 / 热带气旋数据库 -> CSV（S4、S5）
+│   │   ├── static.py            # 探测器位置、每日雨量（S2、S8）
+│   │   ├── holidays.py          # 公众假期，合并所有存档版本（S6）
+│   │   └── select_days.py       # 选事件日和对照日（可选）
+│   ├── clean/                   # L1（原样）和 L2（清洗后）
+│   │   ├── l1.py                # 一条命令做完 L1：manifest，然后所有解析程序
+│   │   ├── manifest.py          # 列出月度打包文件中的每个文件，字节相同的副本归为一组
+│   │   ├── files.py             # 从打包文件中读取快照文件
+│   │   ├── s1_periods.py        # 每个 S1 / S9 文件包含哪些 30 秒时段；缺失和重复的时段
+│   │   ├── s1_parse.py          # S1 / S9 的 L1：每条车道读数
+│   │   ├── s1_rows.py           # S1 / S9 行级检查（重复键、空值、格式）
+│   │   ├── s3_parse.py, s3_checks.py        # S3 天气公报和各区雨量：L1、检查
+│   │   ├── signals_parse.py     # S4 / S5 警告信号的 L1
+│   │   ├── s6_parse.py          # S6 假期的 L1，所有版本
+│   │   ├── s8_parse.py          # S8 每日雨量的 L1
+│   │   ├── versions_parse.py, versions_checks.py  # S2 / S10 / S14 所有版本：L1、检查
+│   │   ├── s7_parse.py, s7_checks.py        # S7 雨量临近预报（可选）：L1、检查
+│   │   ├── s11_parse.py, s11_checks.py      # S11 路段车速（可选）：L1、检查
+│   │   ├── s12_parse.py         # S12 路网（可选）的 L1，所有图层
+│   │   ├── s13_parse.py, s13_checks.py      # S13 交通消息（可选）：L1、检查
+│   │   ├── structure.py         # L1 的值对照预设格式（S4 S5 S6 S8 S12）
+│   │   ├── l2_s1.py             # S1 的 L2：定类型，D3–D6、D12–D14、D16、D21；每月一个 Parquet
+│   │   ├── l2_s3.py             # S3 的 L2：每小时每区雨量，无缺口（D8–D10）
+│   │   └── l2_ref.py            # S2 / S4 / S5 / S6 / S8 的 L2（D2、D3、D11、D17–D20、D22）
+│   ├── l3.py                    # L3 分析表（探测器 × 时段）及 P1–P11 选项
+│   └── analysis/
+│       ├── common.py            # 输出目录、L3 连接、标签、绘图样式
+│       ├── eda.py               # 覆盖率、事件、车速 / 车流与雨量和警告的关系、2025-08-05
+│       ├── rq1.py               # RQ1：每个探测器和每区的敏感度、暴露量、稳定性、地图
+│       ├── rq2.py               # RQ2：按事件留出的预测（基线、线性模型、LightGBM）
+│       └── rq3.py               # RQ3：消融实验，每次只换一个预处理备选
 ├── tests/
-├── data/               # git 忽略；raw/ 由下载命令生成，interim/ 和 processed/ 由处理流程生成
-├── notebooks/          # 探索性分析和实验报告（待定）
-└── results/            # 图表（待定）
+│   ├── test_download.py         # src.download 的测试
+│   └── test_clean.py            # L1 / L2 / L3 规则的测试
+├── report/
+│   ├── main.tex, refs.bib       # 报告源文件（IEEEtran）
+│   ├── main.pdf                 # 编译好的报告
+│   ├── figures/                 # src.analysis 生成的图（eda_*、rq1_*、rq2_*、rq3_*）
+│   └── results/                 # src.analysis 生成的数字（eda / rq1 / rq2 / rq3 的 .json、.csv）
+├── data/                        # git 忽略：raw/（下载）、interim/（l1、l2、l3、manifest、checks）
+└── hkgovdata/                   # 可选的独立本地仓库，外层 Git 忽略
 ```
 
 ## 许可与出处

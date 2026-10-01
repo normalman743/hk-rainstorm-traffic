@@ -126,7 +126,7 @@ the baseline, because the target changes with the variant).
 | Weeks | Work |
 |-------|------|
 | to 21 Oct | Proposal presentation from this document; review the decisions marked "pending review" in `docs/cleaning.md` |
-| 3–4 | Verify the hypotheses (H1–H10 in the report): per-episode analysis of the Black paradox; speed difference in km/h vs ratio; traffic news (S13) for congested slots and stuck sensors |
+| 3–4 | Verify the hypotheses (H1–H12 in the report and `docs/findings_and_next.md`): per-episode analysis of the Black paradox; speed difference in km/h vs ratio; traffic news (S13) for congested slots and stuck sensors |
 | 5 | Add the optional sources where they answer a hypothesis: radar nowcast (S7) for short bursts, road network (S12/S14) for road class |
 | 6 | Extend to more months if the archive allows (more Black / Red episodes) |
 | 7–8 | Final report (IEEE, ≤ 10 pages), presentation (25 Nov) |

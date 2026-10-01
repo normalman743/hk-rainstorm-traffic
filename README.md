@@ -5,20 +5,30 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 > Course project. The focus is **data preprocessing and integration**: every
 > major cleaning / aggregation / matching decision is treated as an experimental
 > variable, and we measure how it changes the downstream results.
-> See [`PROPOSAL.md`](PROPOSAL.md) for the full research plan and
+>
+> **Report draft (IEEE, PDF): [`report/main.pdf`](report/main.pdf).**
+> **Research data** (the whole `data/` folder, ~13 GB, as of 2026-10-01): [Google Drive](https://drive.google.com/drive/folders/1PbwMZtaP58idOqs0kwuPo_p8RRdwfTlG?usp=sharing);
+> what each folder holds and where to put it: [`docs/findings_and_next.md`](docs/findings_and_next.md) §5.
+> Research plan: [`docs/PROPOSAL.md`](docs/PROPOSAL.md). Findings so far and next steps
+> (Chinese): [`docs/findings_and_next.md`](docs/findings_and_next.md). Cleaning rules:
+> [`docs/cleaning.md`](docs/cleaning.md). Also
 > [`docs/raw_data.md`](docs/raw_data.md) (every raw source and field),
 > [`docs/processing.md`](docs/processing.md) (what each pipeline step does) and
 > [`docs/database_description.md`](docs/database_description.md) (processed tables).
 > Chinese versions: [`README.zh.md`](README.zh.md), [`docs/raw_data.zh.md`](docs/raw_data.zh.md),
 > [`docs/processing.zh.md`](docs/processing.zh.md), [`docs/database_description.zh.md`](docs/database_description.zh.md).
 
-## Status (2026-09-29)
+## Status (2026-10-01)
 
 - **Data: complete.** Every source the analysis needs, plus optional extensions, is downloaded
   for 2024-01 .. 2025-12 (~53 GB of raw monthly bundles), each with its official data dictionary.
   Inventory: [`docs/raw_data.md`](docs/raw_data.md#inventory-on-disk-2026-09-29).
-- **Next: processing.** Writing the scripts that turn the raw bundles into the analysis tables.
-  The earlier day-by-day pipeline was removed (see [Processing](#processing)).
+- **Pipeline: end to end for three months** (2024-05, 2025-07, 2025-08; main sources S1–S6, S8):
+  L1 → L2 (cleaned per source) → L3 (detector × 15 min analysis table) → EDA, RQ1, RQ2, RQ3.
+  The report draft ([`report/main.pdf`](report/main.pdf), 6 pages) is built from the results.
+- **Next:** review the decisions marked "pending review" in [`docs/cleaning.md`](docs/cleaning.md),
+  and verify the hypotheses (traffic news S13, per-episode Black Rainstorm analysis); see
+  [`docs/findings_and_next.md`](docs/findings_and_next.md).
 
 ## Research questions
 
@@ -29,7 +39,8 @@ Which Hong Kong roads are most sensitive to rainstorms? Integrating HKO rainfall
 ## Data sources
 
 All data is free Hong Kong government open data. Nothing large is committed: `data/` is
-git-ignored and re-created by the download commands below. Full inventory, file locations,
+git-ignored and re-created by the download commands below, or taken from the
+[research data on Google Drive](https://drive.google.com/drive/folders/1PbwMZtaP58idOqs0kwuPo_p8RRdwfTlG?usp=sharing) (raw files of the three months, L1, L2, L3). Full inventory, file locations,
 fields and quirks: [`docs/raw_data.md`](docs/raw_data.md).
 
 | ID | Data | Provider | Resolution | On disk | Tier |
@@ -102,8 +113,11 @@ days out of a bundle with HTTP range requests.
 
 Layers: **L1** is the raw files as written, in Parquet. Every value is kept as a string, an
 absent element is null and an empty one is `""`. **L2** (cleaning; decisions and open
-questions in [`docs/cleaning.md`](docs/cleaning.md)) is not started yet. The earlier pipeline was removed on 2026-09-29; it is in
-the git history before that date.
+questions in [`docs/cleaning.md`](docs/cleaning.md)) types and cleans each main source; every
+rule is logged with its counts. **L3** is the analysis table, one row per detector and 15-min
+slot, with district rain, warning level and the dry-weather baseline; each preprocessing step
+(P1–P11 in [`docs/PROPOSAL.md`](docs/PROPOSAL.md)) has a default and alternatives for RQ3. The
+earlier day-by-day pipeline was removed on 2026-09-29; it is in the git history before that date.
 
 L1 from the monthly bundles in `data/raw/` (any months; the parsers read the months listed in
 the manifest):
@@ -135,6 +149,29 @@ python -m src.clean.s1_rows --source s1 && python -m src.clean.s1_rows --source 
 python -m src.clean.s3_checks && python -m src.clean.s13_checks && python -m src.clean.s11_checks
 python -m src.clean.s7_checks && python -m src.clean.versions_checks
 python -m src.clean.structure         # S4 S5 S6 S8 S12: presumed forms against the data, with every exception
+```
+
+L2, L3, analysis and report (after L1; packages in `requirements.txt`, LaTeX with `latexmk` for
+the report):
+
+```bash
+# 4. L2 -> data/interim/l2/, counts in data/interim/checks/
+python -m src.clean.l2_s1 202405 202507 202508   # S1 readings, one Parquet per month
+python -m src.clean.l2_s3                          # S3 rain per hour and district
+python -m src.clean.l2_ref                         # S2 detectors, S4 / S5 signals, S6 holidays, S8 daily rain
+
+# 5. L3 -> data/interim/l3/<name>.parquet
+python -m src.l3                                   # the default table
+python -m src.l3 speed_agg=mean                    # a variant: any option=value (RQ3)
+
+# 6. Analysis -> report/figures/*.pdf, report/results/*.json|csv
+python -m src.analysis.eda
+python -m src.analysis.rq1
+python -m src.analysis.rq2
+python -m src.analysis.rq3                         # builds the L3 variants it lacks; ~40 min
+
+# 7. Report -> report/main.pdf
+cd report && latexmk -pdf main.tex
 ```
 
 A parser raises on anything it does not know (a new element, header or file form) instead of
@@ -185,17 +222,64 @@ and the Black Rainstorm of 4–5 Aug 2025.
 
 ```
 .
-├── README(.zh).md, PROPOSAL.md, requirements.txt
-├── docs/               # raw_data(.zh).md, processing(.zh).md, database_description(.zh).md, data_sources_notes.md, course_project.md
-├── plans/              # this project's archive download plans
-├── hkgovdata/          # optional independent local checkout; git-ignored
+├── README.md, README.zh.md      # this file (English / Chinese)
+├── requirements.txt             # Python packages (download, L1, L2, L3, analysis, tests)
+├── docs/
+│   ├── PROPOSAL.md              # research plan, rewritten from the first results (2026-10-01)
+│   ├── findings_and_next.md     # findings so far, what must / could be done next (Chinese)
+│   ├── cleaning.md              # every L2 rule (D1–D22) with evidence, decider and counts; open questions; L3 options
+│   ├── raw_data(.zh).md         # every raw source as published: access, fields, values, problems found
+│   ├── processing(.zh).md       # how raw sources become tables: L1, L2, L3, analysis, src.download
+│   ├── database_description(.zh).md  # sources, tables and how they link; known data issues
+│   ├── data_sources_notes.md    # sources in use vs. reference only
+│   └── course_project.md        # the course's project requirements (copied from Canvas)
+├── plans/                       # archive download plans for hkgovdata (main, optional, road network)
 ├── src/
-│   ├── download/       # sources not in the plans: warnings, static files, holidays; day selection; fetch
-│   └── config.py       # paths and source URLs
+│   ├── config.py                # paths and source URLs
+│   ├── download/                # sources not in the plans
+│   │   ├── __main__.py          # CLI: warnings, static, static-history, holidays, select-days
+│   │   ├── archive.py           # DATA.GOV.HK Historical Archive client
+│   │   ├── warnings.py          # HKO rainstorm / tropical cyclone databases -> CSV (S4, S5)
+│   │   ├── static.py            # detector locations, daily rainfall (S2, S8)
+│   │   ├── holidays.py          # public holidays, all archived versions merged (S6)
+│   │   └── select_days.py       # event + control day selection (optional)
+│   ├── clean/                   # L1 (raw as written) and L2 (cleaned)
+│   │   ├── l1.py                # L1 in one command: manifest, then every parser
+│   │   ├── manifest.py          # every file in the monthly bundles; byte-identical copies grouped
+│   │   ├── files.py             # read snapshot files out of a bundle
+│   │   ├── s1_periods.py        # which 30-s periods each S1 / S9 file holds; missing and repeated periods
+│   │   ├── s1_parse.py          # S1 / S9 L1: every lane reading
+│   │   ├── s1_rows.py           # S1 / S9 row checks (repeated keys, nulls, formats)
+│   │   ├── s3_parse.py, s3_checks.py        # S3 weather bulletins and district rainfall: L1, checks
+│   │   ├── signals_parse.py     # S4 / S5 warning signals L1
+│   │   ├── s6_parse.py          # S6 holidays L1, every version
+│   │   ├── s8_parse.py          # S8 daily rainfall L1
+│   │   ├── versions_parse.py, versions_checks.py  # S2 / S10 / S14, every version: L1, checks
+│   │   ├── s7_parse.py, s7_checks.py        # S7 rainfall nowcast (optional): L1, checks
+│   │   ├── s11_parse.py, s11_checks.py      # S11 segment speeds (optional): L1, checks
+│   │   ├── s12_parse.py         # S12 road network (optional) L1, every layer
+│   │   ├── s13_parse.py, s13_checks.py      # S13 traffic news (optional): L1, checks
+│   │   ├── structure.py         # L1 values against the presumed forms (S4 S5 S6 S8 S12)
+│   │   ├── l2_s1.py             # S1 L2: types, D3–D6, D12–D14, D16, D21; one Parquet per month
+│   │   ├── l2_s3.py             # S3 L2: rain per hour and district, no gaps (D8–D10)
+│   │   └── l2_ref.py            # S2 / S4 / S5 / S6 / S8 L2 (D2, D3, D11, D17–D20, D22)
+│   ├── l3.py                    # L3 analysis table (detector × slot) and its P1–P11 options
+│   └── analysis/
+│       ├── common.py            # output folders, L3 connection, labels, plot style
+│       ├── eda.py               # coverage, events, speed / flow vs rain and warning, 2025-08-05
+│       ├── rq1.py               # RQ1 sensitivity per detector and district, exposure, stability, map
+│       ├── rq2.py               # RQ2 event-held-out prediction (baseline, linear, LightGBM)
+│       └── rq3.py               # RQ3 ablation: one preprocessing alternative at a time
 ├── tests/
-├── data/               # git-ignored; raw/ from the download commands, interim/ and processed/ from the pipeline
-├── notebooks/          # EDA and experiment reports (to come)
-└── results/            # figures, tables (to come)
+│   ├── test_download.py         # src.download
+│   └── test_clean.py            # L1 / L2 / L3 rules
+├── report/
+│   ├── main.tex, refs.bib       # report source (IEEEtran)
+│   ├── main.pdf                 # the built report
+│   ├── figures/                 # figures written by src.analysis (eda_*, rq1_*, rq2_*, rq3_*)
+│   └── results/                 # numbers written by src.analysis (eda / rq1 / rq2 / rq3 .json, .csv)
+├── data/                        # git-ignored: raw/ (downloads), interim/ (l1, l2, l3, manifest, checks)
+└── hkgovdata/                   # optional independent local checkout; git-ignored
 ```
 
 ## Licence & attribution

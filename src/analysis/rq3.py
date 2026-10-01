@@ -2,7 +2,7 @@
 
     python -m src.analysis.rq3
 
-One step changed at a time (PROPOSAL.md P1-P11), the others at their defaults. P1-P8 and P10
+One step changed at a time (docs/PROPOSAL.md P1-P11), the others at their defaults. P1-P8 and P10
 rebuild the L3 table (src.l3); P9 changes the warning features and P11 the slots used.
 
 Per variant:
