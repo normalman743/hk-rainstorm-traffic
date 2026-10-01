@@ -1,6 +1,24 @@
+# Download and L1
 requests>=2.31
 numpy>=1.24
 pandas>=2.0
 pyarrow>=14
+lxml>=5
 tqdm>=4.60
+# S12 road network (optional source): src.clean.s12_parse also loads GDAL's shared library from
+# <python prefix>/lib (libgdal.dylib / libgdal.so), e.g. a conda environment with gdal installed
+pyogrio>=0.10
+
+# L2, L3 and analysis (tested: duckdb 1.5.6, statsmodels 0.15.0, lightgbm 4.7.0,
+# scikit-learn 1.7.1, scipy 1.16.2, matplotlib 3.10.5)
+duckdb>=1.1
+scipy>=1.11
+scikit-learn>=1.4
+statsmodels>=0.14
+lightgbm>=4.0
+matplotlib>=3.8
+
+# Tests
 pytest>=8
+
+# Report: LaTeX with latexmk (not a Python package)

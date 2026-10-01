@@ -60,7 +60,11 @@ GDB = "RdNet_IRNP.gdb"
 OUT_DIR = L1_DIR / "s12"
 LAYERS = CHECKS_DIR / "s12_layers.csv"
 LAYER_COLUMNS = ["bundle", "index", "member", "layer", "geometry_type", "crs", "n_features", "fields"]
-GDAL_LIB = Path(sys.prefix) / "lib" / ("libgdal.dylib" if sys.platform == "darwin" else "libgdal.so")
+# The lib/ of the environment pyogrio is installed in (<env>/lib/pythonX.Y/site-packages/pyogrio),
+# not sys.prefix: a venv with system site packages uses the base environment's pyogrio and GDAL.
+# Checked with conda's pyogrio, which links that library; gdal() checks the version against pyogrio.
+# TODO: pyogrio wheels from pip bundle their own GDAL elsewhere; not checked, so this raises there.
+GDAL_LIB = Path(pyogrio.__file__).parents[3] / ("libgdal.dylib" if sys.platform == "darwin" else "libgdal.so")
 WKB_NONE = 100  # OGRwkbGeometryType wkbNone: a layer without geometry
 M_WARNING = r"Measured \(M\) geometry types are not supported"
 
