@@ -501,6 +501,17 @@ hourly district range, so at 15 and 5\,min the target has variation the input ca
 \emph{Check:} 15-min targets with the 6-min radar nowcast (S7); skill at 60\,min without rain
 features.
 
+\textbf{H11: speed 0 with vehicles counted is a sensor fault, not a standstill.} These
+readings (0.17\,\%, left out by P2) carry a mean of 11.3 vehicles per 30\,s and 36\,\%
+occupancy, which cannot pass at 0\,km/h; in May 2024 half of them come from one detector
+(TDS90023). \emph{Check:} the neighbouring lanes in the same 30\,s and the detector's speed in
+the minutes before and after.
+
+\textbf{H12: a warning-based ranking mixes sensitivity with exposure.} $s_{\mathrm{warn}}$
+correlates at $-0.51$ with the rain the district received under Red/Black, although the
+ranking is stable across storms (split-half 0.84). \emph{Check:} compare the rankings by $s_{\mathrm{warn}}$, the
+exposure-adjusted $s_{\mathrm{warn}}$ and the mixed-model slope on more events.
+
 \textbf{Limitations.} Three months, four Black episodes; rainfall is an hourly range per
 district, not a gauge at the road; the archive misses 27--47\,\% of the 30-s periods; the
 baseline assumes the dry days of a season are comparable; we have no incident data in the
@@ -516,7 +527,7 @@ predictable in aggregate, but congestion episodes remain largely unexplained. Fo
 preprocessing, the lesson of the ablation is that the consequential choices are those that
 define the quantity being measured (speed aggregation, slot length, rain assignment, what
 counts as an outlier), not the ones that decide which few readings to keep. The next steps are
-the checks listed with H1--H10: per-episode analysis of the Black paradox, traffic news for
+the checks listed with H1--H12: per-episode analysis of the Black paradox, traffic news for
 congestion and stuck sensors, radar rainfall at the detector, and more months.
 
 \section*{Acknowledgements}
